@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { supabase, resolveIdentifierToEmail } from './supabase';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 // ==========================================
 // SEED DATA FOR DEMO MODE (FALLBACK)
@@ -2269,7 +2269,6 @@ export default function App() {
       let dayStatus = '';
       let remarks = '';
 
-      const isDailyWage = emp.employment_category === 'Daily Wage';
       const isSunday = dayOfWeek === 0;
       const isMonday = dayOfWeek === 1;
       const isSecSat = isSecondSaturday(dateStr);
@@ -2297,7 +2296,7 @@ export default function App() {
       ]);
     }
 
-    doc.autoTable({
+    autoTable(doc, {
       head: [['Day', 'Weekday', 'Attendance Status', 'Remarks']],
       body: tableData,
       startY: 50,
@@ -2428,7 +2427,7 @@ export default function App() {
       ]);
     });
 
-    doc.autoTable({
+    autoTable(doc, {
       head: [['#', 'Emp No', 'Employee Name', 'Designation', 'Wage Rate', 'Present Days', 'Payable Days', 'Total Salary']],
       body: tableData,
       startY: 35,
