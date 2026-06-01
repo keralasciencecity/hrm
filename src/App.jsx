@@ -145,6 +145,7 @@ export default function App() {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1); // 1-12
   const [reportYear, setReportYear] = useState(new Date().getFullYear());
   const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1); // 1-12
+  const [printData, setPrintData] = useState(null);
   
   // Dashboard mini calendar active selection states
   const [dashYear, setDashYear] = useState(new Date().getFullYear());
@@ -812,6 +813,16 @@ export default function App() {
       setViewedEmployeeId('');
     }
   }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (printData) {
+      const timer = setTimeout(() => {
+        window.print();
+        setPrintData(null);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [printData]);
 
   // Load Seed / LocalStorage Data for Demo Mode
   const loadDemoData = () => {
@@ -5270,6 +5281,116 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* 7. Premium, Native Print Layout Gated Grid (Bypasses popup blockers completely!) */}
+      {printData && printData.type === 'attendance' && (
+        <div className="print-report-container">
+          <div className="header">
+            <h1>KERALA SCIENCE CITY</h1>
+            <h2>Monthly Employee Attendance Report</h2>
+            <p>Month/Year: {String(printData.month).padStart(2, '0')} / {printData.year}</p>
+          </div>
+          <div className="divider"></div>
+          <div className="info-grid">
+            <div className="info-item"><strong>Employee Name:</strong> {printData.targetEmp.full_name}</div>
+            <div className="info-item"><strong>Employee Number:</strong> {printData.targetEmp.employee_number}</div>
+            <div className="info-item"><strong>Employment Type:</strong> {printData.targetEmp.employment_category}</div>
+            <div className="info-item"><strong>Designation:</strong> {printData.targetEmp.designation}</div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: '10%' }}>Day</th>
+                <th style={{ width: '15%' }}>Weekday</th>
+                <th style={{ width: '45%' }}>Attendance Status</th>
+                <th style={{ width: '30%' }}>Remarks</th>
+              </tr>
+            </thead>
+            <tbody>
+              {printData.rows.map(r => (
+                <tr key={r.day}>
+                  <td>{r.day}</td>
+                  <td>{r.weekday}</td>
+                  <td>{r.status}</td>
+                  <td>{r.remarks}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="summary-section">
+            <h3 style={{ marginTop: 0, color: '#111827' }}>Tally Summary</h3>
+            <div className="summary-grid">
+              <div>
+                <div className="info-item">Calculated Present Days: <strong>{printData.calculatedPresentCount}</strong></div>
+                <div className="info-item">Total Formulated Leaves: <strong>{printData.calculatedLeavesCount}</strong></div>
+              </div>
+              <div>
+                <div className="info-item">System Holidays & Weekly Offs: <strong>{printData.summary.H + printData.summary.WO}</strong></div>
+              </div>
+            </div>
+          </div>
+          <div className="signatures">
+            <div className="signature-box">
+              <div className="signature-line"></div>
+              Reporting Officer
+            </div>
+            <div className="signature-box">
+              <div className="signature-line"></div>
+              Administrative Officer
+            </div>
+          </div>
+        </div>
+      )}
+
+      {printData && printData.type === 'wages' && (
+        <div className="print-report-container">
+          <div className="header">
+            <h1>KERALA SCIENCE CITY</h1>
+            <h2>Daily Wage Calculations & Salary Statement</h2>
+            <p>Month/Year: {new Date(printData.year, printData.month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</p>
+          </div>
+          <div className="divider"></div>
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: '5%' }}>#</th>
+                <th style={{ width: '12%' }}>Emp No</th>
+                <th style={{ width: '25%' }}>Employee Name</th>
+                <th style={{ width: '18%' }}>Designation</th>
+                <th style={{ width: '12%' }}>Wage Rate</th>
+                <th style={{ width: '13%' }}>Present Days</th>
+                <th style={{ width: '15%' }}>Payable Days</th>
+                <th style={{ width: '15%' }}>Total Salary</th>
+              </tr>
+            </thead>
+            <tbody>
+              {printData.rows.map(r => (
+                <tr key={r.index}>
+                  <td>{r.index}</td>
+                  <td><strong>{r.empNo}</strong></td>
+                  <td>{r.name}</td>
+                  <td>{r.designation}</td>
+                  <td>{r.rate}</td>
+                  <td>{r.presentDays}</td>
+                  <td>{r.payableDays}</td>
+                  <td><strong>{r.totalSalary}</strong></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="signatures">
+            <div className="signature-box">
+              <div className="signature-line"></div>
+              Accounts Clerk
+            </div>
+            <div className="signature-box">
+              <div className="signature-line"></div>
+              Administrative Officer Approval
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
