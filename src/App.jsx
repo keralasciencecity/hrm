@@ -2441,7 +2441,445 @@ export default function App() {
     doc.save(`KSC_DailyWage_Report_${targetMonthStr}.pdf`);
   };
 
+  const printEmployeeAttendance = (targetEmp, year = currentYear, month = currentMonth) => {
+    const targetMonthStr = `${year}-${String(month).padStart(2, '0')}`;
+    const empAttRecords = attendance.filter(
+      att => att.employee_id === targetEmp.id && att.date.startsWith(targetMonthStr) && att.approval_status === 'Approved'
+    );
+    const numDays = new Date(year, month, 0).getDate();
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    const summary = { P: 0, CL: 0, ML: 0, EL: 0, SL: 0, FH: 0, SH: 0, OD: 0, TR: 0, TO: 0, CO: 0, WO: 0, H: 0, A: 0 };
+    const rows = [];
+
+    for (let day = 1; day <= numDays; day++) {
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const record = empAttRecords.find(a => a.date === dateStr);
+      const dayOfWeek = new Date(year, month - 1, day).getDay();
+      const cellDate = new Date(year, month - 1, day);
+      
+      let dayStatus = '';
+      let remarks = '';
+
+      const isSunday = dayOfWeek === 0;
+      const isMonday = dayOfWeek === 1;
+      const isSecSat = isSecondSaturday(dateStr);
+      const matchedHols = holidays.filter(h => h.date === dateStr);
+      const isFuture = cellDate > today;
+
+      if (record) {
+        dayStatus = getStatusFullName(record.status);
+        remarks = record.remarks || '';
+        summary[record.status] = (summary[record.status] || 0) + 1;
+      } else if (!isFuture) {
+        dayStatus = 'Present (P) [Default]';
+        summary['P'] = (summary['P'] || 0) + 1;
+      } else {
+        dayStatus = '-';
+      }
+
+      rows.push({
+        day,
+        weekday: new Date(year, month - 1, day).toLocaleDateString('en-IN', { weekday: 'short' }),
+        status: dayStatus,
+        remarks
+      });
+    }
+
+    const calculatedLeavesCount = summary.CL + summary.ML + summary.EL + summary.SL + (summary.FH * 0.5) + (summary.SH * 0.5);
+    const calculatedPresentCount = summary.P + summary.OD + summary.TR + (summary.FH * 0.5) + (summary.SH * 0.5);
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert("Please allow pop-ups to open the print view.");
+      return;
+    }
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Attendance_${targetEmp.employee_number}_${targetMonthStr}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            color: #1a1a1a;
+            padding: 40px;
+            margin: 0;
+            background-color: #ffffff;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: 1px;
+            font-weight: bold;
+            color: #0b0f19;
+          }
+          .header h2 {
+            margin: 5px 0 0 0;
+            font-size: 16px;
+            color: #4b5563;
+          }
+          .header p {
+            margin: 5px 0 0 0;
+            font-size: 12px;
+            color: #6b7280;
+          }
+          .divider {
+            border-bottom: 2px solid #1f2937;
+            margin-bottom: 20px;
+          }
+          .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 30px;
+            font-size: 14px;
+          }
+          .info-item {
+            margin-bottom: 5px;
+          }
+          .info-item strong {
+            color: #374151;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+            font-size: 12px;
+          }
+          th, td {
+            border: 1px solid #d1d5db;
+            padding: 8px 12px;
+            text-align: left;
+          }
+          th {
+            background-color: #f3f4f6;
+            font-weight: bold;
+            color: #1f2937;
+          }
+          .summary-section {
+            margin-top: 20px;
+            font-size: 13px;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 15px;
+          }
+          .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 40px;
+          }
+          .signatures {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 60px;
+            font-size: 13px;
+          }
+          .signature-box {
+            text-align: center;
+            width: 200px;
+          }
+          .signature-line {
+            border-top: 1px solid #4b5563;
+            margin-bottom: 5px;
+          }
+          @media print {
+            body { padding: 10px; }
+            button { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>KERALA SCIENCE CITY</h1>
+          <h2>Monthly Employee Attendance Report</h2>
+          <p>Month/Year: ${String(month).padStart(2, '0')} / ${year}</p>
+        </div>
+        <div class="divider"></div>
+        <div class="info-grid">
+          <div>
+            <div class="info-item"><strong>Employee Name:</strong> ${targetEmp.full_name}</div>
+            <div class="info-item"><strong>Employee Number:</strong> ${targetEmp.employee_number}</div>
+          </div>
+          <div>
+            <div class="info-item"><strong>Employment Type:</strong> ${targetEmp.employment_category}</div>
+            <div class="info-item"><strong>Designation:</strong> ${targetEmp.designation}</div>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 10%;">Day</th>
+              <th style="width: 15%;">Weekday</th>
+              <th style="width: 45%;">Attendance Status</th>
+              <th style="width: 30%;">Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td>${r.day}</td>
+                <td>${r.weekday}</td>
+                <td>${r.status}</td>
+                <td>${r.remarks}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div class="summary-section">
+          <h3 style="margin-top: 0; color: #111827;">Tally Summary</h3>
+          <div class="summary-grid">
+            <div>
+              <div class="info-item">Calculated Present Days: <strong>${calculatedPresentCount}</strong></div>
+              <div class="info-item">Total Formulated Leaves: <strong>${calculatedLeavesCount}</strong></div>
+            </div>
+            <div>
+              <div class="info-item">System Holidays & Weekly Offs: <strong>${summary.H + summary.WO}</strong></div>
+            </div>
+          </div>
+        </div>
+        <div class="signatures">
+          <div class="signature-box">
+            <div class="signature-line"></div>
+            Reporting Officer
+          </div>
+          <div class="signature-box">
+            <div class="signature-line"></div>
+            Administrative Officer
+          </div>
+        </div>
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 500);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
+  const printDailyWageReport = (year = currentYear, month = currentMonth) => {
+    const targetMonthStr = `${year}-${String(month).padStart(2, '0')}`;
+    const isRepOfficerRole = employees.some(e => e.reporting_officers?.includes(currentUser?.full_name));
+    const wageStaff = employees.filter(emp => {
+      if (emp.employment_category !== 'Daily Wage' || emp.is_archived) return false;
+      if (currentUser.role === 'Root Admin' || currentUser.role === 'Admin') return true;
+      if (isRepOfficerRole) {
+        return emp.reporting_officers && emp.reporting_officers.includes(currentUser.full_name);
+      }
+      return false;
+    });
+
+    const rows = [];
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    wageStaff.forEach((emp, index) => {
+      const numDays = new Date(year, month, 0).getDate();
+      let workedDays = 0;
+      let clDaysTaken = 0;
+
+      for (let day = 1; day <= numDays; day++) {
+        const dateStr = `${targetMonthStr}-${String(day).padStart(2, '0')}`;
+        const record = attendance.find(a => a.employee_id === emp.id && a.date === dateStr && a.approval_status === 'Approved');
+        
+        const dayOfWeek = new Date(year, month - 1, day).getDay();
+        const isSunday = dayOfWeek === 0;
+        const isMonday = dayOfWeek === 1;
+        const isSecSat = isSecondSaturday(dateStr);
+        const hasCustomHol = holidays.some(h => h.date === dateStr);
+        const cellDate = new Date(year, month - 1, day);
+        const isFuture = cellDate > today;
+
+        if (record) {
+          if (record.status === 'P' || record.status === 'OD' || record.status === 'TR') workedDays += 1.0;
+          else if (record.status === 'FH' || record.status === 'SH') workedDays += 0.5;
+          else if (record.status === 'CL') clDaysTaken += 1.0;
+        } else if (!isFuture) {
+          workedDays += 1.0;
+        }
+      }
+
+      const clLimit = isDemoMode
+        ? (emp.cl_limit ?? 3)
+        : (leaveBalances[emp.id]?.cl_limit ?? 3);
+
+      const paidLeaves = Math.min(clLimit, clDaysTaken);
+      const rate = emp.daily_wage_rate || 900;
+      const maxDays = emp.max_working_days || 25;
+      const totalPaidDays = workedDays + paidLeaves;
+      const payableDays = Math.min(totalPaidDays, maxDays);
+      const totalWage = payableDays * rate;
+
+      rows.push({
+        index: index + 1,
+        empNo: emp.employee_number,
+        name: emp.full_name,
+        designation: emp.designation,
+        rate: `Rs. ${rate}/day`,
+        presentDays: `${workedDays} + ${paidLeaves} CL (${totalPaidDays}d)`,
+        payableDays: `${payableDays} days (Max ${maxDays})`,
+        totalSalary: `Rs. ${totalWage.toLocaleString()}`
+      });
+    });
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert("Please allow pop-ups to open the print view.");
+      return;
+    }
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>DailyWage_Report_${targetMonthStr}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            color: #1a1a1a;
+            padding: 40px;
+            margin: 0;
+            background-color: #ffffff;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: 1px;
+            font-weight: bold;
+            color: #0b0f19;
+          }
+          .header h2 {
+            margin: 5px 0 0 0;
+            font-size: 16px;
+            color: #4b5563;
+          }
+          .header p {
+            margin: 5px 0 0 0;
+            font-size: 12px;
+            color: #6b7280;
+          }
+          .divider {
+            border-bottom: 2px solid #1f2937;
+            margin-bottom: 25px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 40px;
+            font-size: 12px;
+          }
+          th, td {
+            border: 1px solid #d1d5db;
+            padding: 10px 12px;
+            text-align: left;
+          }
+          th {
+            background-color: #f3f4f6;
+            font-weight: bold;
+            color: #1f2937;
+          }
+          .signatures {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 80px;
+            font-size: 13px;
+          }
+          .signature-box {
+            text-align: center;
+            width: 240px;
+          }
+          .signature-line {
+            border-top: 1px solid #4b5563;
+            margin-bottom: 5px;
+          }
+          @media print {
+            body { padding: 10px; }
+            button { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>KERALA SCIENCE CITY</h1>
+          <h2>Daily Wage Calculations & Salary Statement</h2>
+          <p>Month/Year: ${new Date(year, month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</p>
+        </div>
+        <div class="divider"></div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 5%;">#</th>
+              <th style="width: 12%;">Emp No</th>
+              <th style="width: 25%;">Employee Name</th>
+              <th style="width: 18%;">Designation</th>
+              <th style="width: 12%;">Wage Rate</th>
+              <th style="width: 13%;">Present Days</th>
+              <th style="width: 15%;">Payable Days</th>
+              <th style="width: 15%;">Total Salary</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td>${r.index}</td>
+                <td><strong>${r.empNo}</strong></td>
+                <td>${r.name}</td>
+                <td>${r.designation}</td>
+                <td>${r.rate}</td>
+                <td>${r.presentDays}</td>
+                <td>${r.payableDays}</td>
+                <td><strong>${r.totalSalary}</strong></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div class="signatures">
+          <div class="signature-box">
+            <div class="signature-line"></div>
+            Accounts Clerk
+          </div>
+          <div class="signature-box">
+            <div class="signature-line"></div>
+            Administrative Officer Approval
+          </div>
+        </div>
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 500);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   // ==========================================
+
   // HELPERS FOR CALCULATING METRICS
   // ==========================================
   const getBirthdayStatus = () => {
@@ -3866,8 +4304,8 @@ export default function App() {
                   <strong>{emp.full_name}</strong> ({emp.employee_number})
                   <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{emp.designation} | {emp.employment_category}</div>
                 </div>
-                <button className="btn btn-secondary" style={{ padding: '8px 16px' }} onClick={() => generateEmployeeAttendancePDF(emp, reportYear, reportMonth)}>
-                  <FileText size={16} /> Export PDF
+                <button className="btn btn-secondary" style={{ padding: '8px 16px' }} onClick={() => printEmployeeAttendance(emp, reportYear, reportMonth)}>
+                  <FileText size={16} /> Print / Save PDF
                 </button>
               </div>
             ))}
@@ -3892,8 +4330,8 @@ export default function App() {
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '15px' }}>
                 Calculates salaries for all daily wage employees for {new Date(reportYear, reportMonth - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}.
               </p>
-              <button className="btn btn-success" onClick={() => generateDailyWageReportPDF(reportYear, reportMonth)}>
-                <FileText size={16} /> Download Wages Report
+              <button className="btn btn-success" onClick={() => printDailyWageReport(reportYear, reportMonth)}>
+                <FileText size={16} /> Print Wages Report
               </button>
             </div>
           </div>
