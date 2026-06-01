@@ -37,10 +37,20 @@ CREATE TABLE public.employees (
     educational_qualification TEXT,       -- Nullable
     role TEXT NOT NULL DEFAULT 'Employee', -- Root Admin, Admin, Employee
     is_archived BOOLEAN NOT NULL DEFAULT false,
+    is_hidden BOOLEAN NOT NULL DEFAULT false,
     weekly_off_eligible BOOLEAN NOT NULL DEFAULT true,
     weekly_off_day TEXT NOT NULL DEFAULT 'Monday', -- Monday or Sunday
     daily_wage_rate NUMERIC NOT NULL DEFAULT 0,    -- Wage rate for daily wage category
     max_working_days INT NOT NULL DEFAULT 25,      -- Max working days per month for daily wage
+    od_eligible BOOLEAN NOT NULL DEFAULT true,
+    tr_eligible BOOLEAN NOT NULL DEFAULT true,
+    to_eligible BOOLEAN NOT NULL DEFAULT true,
+    co_eligible BOOLEAN NOT NULL DEFAULT true,
+    co_limit INT NOT NULL DEFAULT 15,
+    fh_eligible BOOLEAN NOT NULL DEFAULT true,
+    sh_eligible BOOLEAN NOT NULL DEFAULT true,
+    a_eligible BOOLEAN NOT NULL DEFAULT true,
+    p_eligible BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
