@@ -2909,7 +2909,7 @@ export default function App() {
             )}
 
             {/* Employee Welcome & Quick Balance Hub */}
-            {currentUser.role === 'Employee' && (
+            {currentUser.role !== 'Root Admin' && (
               <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '15px' }}>
                   <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 'bold', color: '#ffffff', flexShrink: 0 }}>
