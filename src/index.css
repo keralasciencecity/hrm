@@ -772,9 +772,22 @@ h1, h2, h3, h4, h5, h6 {
   gap: 20px;
 }
 
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+}
+
+.grid-4 {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 15px;
+  align-items: center;
+}
+
 @media (max-width: 600px) {
-  .grid-2 {
-    grid-template-columns: 1fr;
+  .grid-2, .grid-3, .grid-4 {
+    grid-template-columns: 1fr !important;
     gap: 10px;
   }
 }
@@ -1030,4 +1043,181 @@ h1, h2, h3, h4, h5, h6 {
 .calendar-cell.holiday-cell .calendar-cell-date {
   color: #34d399 !important;
   font-weight: 700 !important;
+}
+
+/* ==========================================
+   MOBILE & RESPONSIVE UPGRADES (V1.9.5)
+   ========================================== */
+
+/* Toggle Sidebar buttons defaults (hidden on desktop) */
+.mobile-toggle-btn, .mobile-close-btn, .sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  /* Off-canvas Sliding Sidebar Drawer */
+  .sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    background: rgba(18, 20, 26, 0.98) !important;
+    backdrop-filter: blur(20px);
+    border-right: 1px solid var(--glass-border);
+    display: flex !important;
+    flex-direction: column;
+    padding: 25px 18px;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* Sidebar sliding overlay background */
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 999;
+  }
+
+  /* Close drawer button inside sidebar logo section */
+  .mobile-close-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+  }
+
+  .mobile-close-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  /* Hamburger toggle menu button inside header */
+  .mobile-toggle-btn {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    width: 38px;
+    height: 38px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .mobile-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  /* Main content spacing adjust */
+  .main-workspace {
+    width: 100%;
+    min-width: 0;
+    padding: 20px 15px;
+  }
+
+  /* Workspace Header stacking */
+  .workspace-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    border-radius: var(--radius-sm);
+  }
+
+  .workspace-header > div:last-child {
+    width: 100%;
+    justify-content: space-between;
+    border-top: 1px solid var(--glass-border);
+    padding-top: 12px;
+    margin-top: 5px;
+  }
+
+  /* Form layouts stacking */
+  .grid-2, .grid-3, .grid-4 {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+
+  /* Modals fitting screen */
+  .modal-content {
+    width: 95% !important;
+    padding: 20px !important;
+    margin: 15px auto;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* Metric widgets: beautiful 2-column grid on mobile phones! */
+  .widgets-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px;
+  }
+
+  /* Compact button styling on mobile phones */
+  .btn {
+    padding: 6px 12px !important;
+    font-size: 11px !important;
+    gap: 4px !important;
+  }
+
+  /* Data-dense table styling on mobile phones to fit more content */
+  .custom-table th, .custom-table td {
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+  }
+
+  /* Compact calendar cells on mobile phones */
+  .calendar-cell {
+    height: 48px !important;
+    padding: 2px 4px !important;
+  }
+
+  .calendar-cell-date {
+    font-size: 10px !important;
+  }
+
+  .calendar-cell-status {
+    transform: scale(0.8) !important;
+    margin-bottom: 0 !important;
+  }
+
+  .calendar-days-header span {
+    font-size: 9px !important;
+  }
+
+  /* Calendar grids scale scroll protection */
+  .calendar-grid {
+    min-width: 650px;
+  }
+
+  .calendar-days-header {
+    min-width: 650px;
+  }
 }

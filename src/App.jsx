@@ -4,7 +4,7 @@ import {
   Lock, Settings, FileText, Plus, Trash, Check, X, 
   Gift, AlertCircle, DollarSign, IndianRupee, CheckCircle, Eye, 
   LogOut, Shield, ChevronLeft, ChevronRight, UserPlus, 
-  Edit3, RotateCcw, Search, Cake, HardDrive, Key, CheckSquare, AlertTriangle
+  Edit3, RotateCcw, Search, Cake, HardDrive, Key, CheckSquare, AlertTriangle, Menu
 } from 'lucide-react';
 import { supabase, resolveIdentifierToEmail } from './supabase';
 import { jsPDF } from 'jspdf';
@@ -160,6 +160,7 @@ export default function App() {
   
   // Detailed events list for calendar overlay details modal
   const [calendarDateEvents, setCalendarDateEvents] = useState([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   // Requests/Forms states
   const [reqDate, setReqDate] = useState('');
@@ -916,7 +917,20 @@ export default function App() {
         .select('*')
         .order('date', { ascending: true });
       if (holErr) throw holErr;
-      setHolidays(holData || []);
+      
+      if (holData && holData.length > 0) {
+        setHolidays(holData);
+      } else {
+        // Seed DEFAULT_HOLIDAYS to live database table asynchronously
+        setHolidays(DEFAULT_HOLIDAYS);
+        Promise.all(DEFAULT_HOLIDAYS.map(h => 
+          supabase.from('holidays').insert({ date: h.date, name: h.name })
+        )).then(() => {
+          // Re-fetch to get correct generated database UUIDs
+          supabase.from('holidays').select('*').order('date', { ascending: true })
+            .then(({ data }) => { if (data && data.length > 0) setHolidays(data); });
+        }).catch(err => console.error("Error seeding holidays:", err));
+      }
 
       const { data: lockData, error: lockErr } = await supabase
         .from('attendance_locks')
@@ -2909,7 +2923,7 @@ export default function App() {
             )}
 
             {/* Employee Welcome & Quick Balance Hub */}
-            {currentUser.role !== 'Root Admin' && (
+            {currentUser && (
               <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid var(--glass-border)', paddingBottom: '15px' }}>
                   <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: 'bold', color: '#ffffff', flexShrink: 0 }}>
@@ -4084,43 +4098,51 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <aside className="sidebar">
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)}></div>
+      )}
+
+      <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-logo">
           <Compass size={28} style={{ color: 'var(--accent-blue)', flexShrink: 0 }} />
-          <h1 style={{ fontSize: '15px', lineHeight: '1.2', fontWeight: '800' }}>Kerala Science City HRMS</h1>
+          <h1 style={{ fontSize: '15px', lineHeight: '1.2', fontWeight: '800', flexGrow: 1 }}>Kerala Science City HRMS</h1>
+          <button className="mobile-close-btn" onClick={() => setIsSidebarOpen(false)}>
+            <X size={18} />
+          </button>
         </div>
 
         <ul className="sidebar-menu">
           <li>
-            <button className={`sidebar-item-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+            <button className={`sidebar-item-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => { setActiveTab('dashboard'); setIsSidebarOpen(false); }}>
               <Calendar size={18} /> Dashboard
             </button>
           </li>
           <li>
-            <button className={`sidebar-item-btn ${activeTab === 'attendance' ? 'active' : ''}`} onClick={() => setActiveTab('attendance')}>
+            <button className={`sidebar-item-btn ${activeTab === 'attendance' ? 'active' : ''}`} onClick={() => { setActiveTab('attendance'); setIsSidebarOpen(false); }}>
               <Clock size={18} /> My Attendance
             </button>
           </li>
           <li>
-            <button className={`sidebar-item-btn ${activeTab === 'employees' ? 'active' : ''}`} onClick={() => setActiveTab('employees')}>
+            <button className={`sidebar-item-btn ${activeTab === 'employees' ? 'active' : ''}`} onClick={() => { setActiveTab('employees'); setIsSidebarOpen(false); }}>
               <Users size={18} /> {currentUser.role === 'Root Admin' ? 'Staff Master' : 'Staff Register'}
             </button>
           </li>
           {currentUser.role === 'Root Admin' && (
             <li>
-              <button className={`sidebar-item-btn ${activeTab === 'holidays' ? 'active' : ''}`} onClick={() => setActiveTab('holidays')}>
+              <button className={`sidebar-item-btn ${activeTab === 'holidays' ? 'active' : ''}`} onClick={() => { setActiveTab('holidays'); setIsSidebarOpen(false); }}>
                 <Settings size={18} /> Holiday Config
               </button>
             </li>
           )}
           <li>
-            <button className={`sidebar-item-btn ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>
+            <button className={`sidebar-item-btn ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => { setActiveTab('reports'); setIsSidebarOpen(false); }}>
               <FileText size={18} /> Reports Board
             </button>
           </li>
           {currentUser.role === 'Root Admin' && (
             <li>
-              <button className={`sidebar-item-btn ${activeTab === 'audits' ? 'active' : ''}`} onClick={() => setActiveTab('audits')}>
+              <button className={`sidebar-item-btn ${activeTab === 'audits' ? 'active' : ''}`} onClick={() => { setActiveTab('audits'); setIsSidebarOpen(false); }}>
                 <Shield size={18} /> Audit Trails
               </button>
             </li>
@@ -4129,7 +4151,7 @@ export default function App() {
 
         {/* User Card */}
         <div className="sidebar-user">
-          <div className="sidebar-user-info" style={{ cursor: 'pointer' }} onClick={openProfileEditModal}>
+          <div className="sidebar-user-info" style={{ cursor: 'pointer' }} onClick={() => { openProfileEditModal(); setIsSidebarOpen(false); }}>
             <div className="sidebar-user-avatar">{currentUser.full_name.charAt(0)}</div>
             <div className="sidebar-user-details" style={{ flexGrow: 1 }}>
               <span className="sidebar-user-name" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '600', color: 'var(--text-primary)' }}>
@@ -4141,7 +4163,7 @@ export default function App() {
               </span>
             </div>
           </div>
-          <button className="sidebar-item-btn" onClick={() => setShowPasswordModal(true)}>
+          <button className="sidebar-item-btn" onClick={() => { setShowPasswordModal(true); setIsSidebarOpen(false); }}>
             <Key size={16} /> Change Password
           </button>
           <button className="btn btn-danger" style={{ width: '100%', marginTop: '10px' }} onClick={handleLogout}>
@@ -4153,14 +4175,19 @@ export default function App() {
       {/* Main Workspace Frame */}
       <main className="main-workspace">
         <header className="workspace-header">
-          <div className="workspace-title-section">
-            <h2>
-              {activeTab === 'employees' 
-                ? (currentUser.role === 'Root Admin' ? 'Staff Master' : 'Staff Register') 
-                : (activeTab.charAt(0).toUpperCase() + activeTab.slice(1))
-              } Control Hub
-            </h2>
-            <p>Kerala Science City Staff Registry Administration Panel</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button className="mobile-toggle-btn" onClick={() => setIsSidebarOpen(true)}>
+              <Menu size={20} />
+            </button>
+            <div className="workspace-title-section">
+              <h2>
+                {activeTab === 'employees' 
+                  ? (currentUser.role === 'Root Admin' ? 'Staff Master' : 'Staff Register') 
+                  : (activeTab.charAt(0).toUpperCase() + activeTab.slice(1))
+                } Control Hub
+              </h2>
+              <p>Kerala Science City Staff Registry Panel</p>
+            </div>
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -4456,7 +4483,7 @@ export default function App() {
                 <textarea className="form-control" rows="2" value={empForm.address} onChange={e => setEmpForm({...empForm, address: e.target.value})}></textarea>
               </div>
 
-              <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
+              <div className="grid-3">
                 <div className="form-group">
                   <label>Emergency Contact Name</label>
                   <input type="text" className="form-control" value={empForm.emergency_name} onChange={e => setEmpForm({...empForm, emergency_name: e.target.value})} />
@@ -4523,7 +4550,7 @@ export default function App() {
                 <strong style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Configure Leave Eligibility & Limits (Applies to Permanent & DW alike!):</strong>
                 
                 {/* CL Config */}
-                <div className="grid-4" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr', gap: '15px', alignItems: 'center' }}>
+                <div className="grid-4">
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <input type="checkbox" id="chkCLEligible" checked={empForm.cl_eligible} onChange={e => setEmpForm({...empForm, cl_eligible: e.target.checked})} />
                     <label htmlFor="chkCLEligible" style={{ margin: 0 }}>Casual Leave (CL)</label>
@@ -4540,7 +4567,7 @@ export default function App() {
                 </div>
 
                 {/* ML Config */}
-                <div className="grid-4" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr', gap: '15px', alignItems: 'center' }}>
+                <div className="grid-4">
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <input type="checkbox" id="chkMLEligible" checked={empForm.ml_eligible} onChange={e => setEmpForm({...empForm, ml_eligible: e.target.checked})} />
                     <label htmlFor="chkMLEligible" style={{ margin: 0 }}>Medical Leave (ML)</label>
@@ -4557,7 +4584,7 @@ export default function App() {
                 </div>
 
                 {/* EL Config */}
-                <div className="grid-4" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr', gap: '15px', alignItems: 'center' }}>
+                <div className="grid-4">
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <input type="checkbox" id="chkELEligible" checked={empForm.el_eligible} onChange={e => setEmpForm({...empForm, el_eligible: e.target.checked})} />
                     <label htmlFor="chkELEligible" style={{ margin: 0 }}>Earned Leave (EL)</label>
@@ -4574,7 +4601,7 @@ export default function App() {
                 </div>
 
                 {/* SL Config */}
-                <div className="grid-4" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr 1fr', gap: '15px', alignItems: 'center' }}>
+                <div className="grid-4">
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <input type="checkbox" id="chkSLEligible" checked={empForm.sl_eligible} onChange={e => setEmpForm({...empForm, sl_eligible: e.target.checked})} />
                     <label htmlFor="chkSLEligible" style={{ margin: 0 }}>Special Leave (SL)</label>
@@ -4694,7 +4721,7 @@ export default function App() {
                 <input type="text" className="form-control" value={profileEditForm.educational_qualification} onChange={e => setProfileEditForm({...profileEditForm, educational_qualification: e.target.value})} required />
               </div>
 
-              <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px' }}>
+              <div className="grid-3">
                 <div className="form-group">
                   <label>Emergency Contact Name</label>
                   <input type="text" className="form-control" value={profileEditForm.emergency_name} onChange={e => setProfileEditForm({...profileEditForm, emergency_name: e.target.value})} required />
@@ -4737,7 +4764,7 @@ export default function App() {
 
               <div>
                 <h4 style={{ color: 'var(--text-primary)', marginBottom: '10px', fontSize: '14px', borderLeft: '3px solid var(--accent-blue)', paddingLeft: '8px' }}>Public Directory Info</h4>
-                <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+                <div className="grid-3">
                   <div style={{ padding: '10px', background: 'rgba(255, 255, 255, 0.01)', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-sm)' }}>
                     <span style={{ display: 'block', fontSize: '10px', color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '4px' }}>Employee Number</span>
                     <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>{selectedEmpDetails.employee_number}</span>
@@ -4775,7 +4802,7 @@ export default function App() {
 
               <div>
                 <h4 style={{ color: 'var(--text-primary)', marginBottom: '10px', fontSize: '14px', borderLeft: '3px solid var(--accent-amber)', paddingLeft: '8px' }}>Private Contact & Administrative Info</h4>
-                <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+                <div className="grid-3">
                   {(() => {
                     const isAuthorized = currentUser.role === 'Root Admin' || currentUser.role === 'Admin' || currentUser.id === selectedEmpDetails.id || (selectedEmpDetails.reporting_officers && selectedEmpDetails.reporting_officers.includes(currentUser.full_name));
                     const renderSensitiveField = (label, value) => (
