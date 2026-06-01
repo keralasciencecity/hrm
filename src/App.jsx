@@ -1460,7 +1460,7 @@ export default function App() {
               ml_eligible: empForm.ml_eligible, ml_limit_type: empForm.ml_limit_type, ml_limit: parseFloat(empForm.ml_limit),
               el_eligible: empForm.el_eligible, el_limit_type: empForm.el_limit_type, el_limit: parseFloat(empForm.el_limit),
               sl_eligible: empForm.sl_eligible, sl_limit_type: empForm.sl_limit_type, sl_limit: parseFloat(empForm.sl_limit)
-            });
+            }, { onConflict: 'employee_id' });
 
           if (leaveErr) throw leaveErr;
           // Clean up pre-joining C-Off credits
