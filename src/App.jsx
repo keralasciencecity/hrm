@@ -115,6 +115,86 @@ const INITIAL_EMPLOYEES = [
   }
 ];
 
+// Indian English number to words converter
+function convertNumberToWords(num) {
+  const a = [
+    '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 
+    'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'
+  ];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  if (num === 0) return 'Zero';
+
+  function count(n, suffix) {
+    if (n === 0) return '';
+    let str = '';
+    if (n > 19) {
+      str += b[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + a[n % 10] : '');
+    } else {
+      str += a[n];
+    }
+    return str + (suffix ? ' ' + suffix : '');
+  }
+
+  let words = '';
+  const crore = Math.floor(num / 10000000);
+  let rem = num % 10000000;
+  const lakh = Math.floor(rem / 100000);
+  rem %= 100000;
+  const thousand = Math.floor(rem / 1000);
+  rem %= 1000;
+  const hundred = Math.floor(rem / 100);
+  const remaining = rem % 100;
+
+  if (crore > 0) {
+    words += count(crore, 'Crore') + ' ';
+  }
+  if (lakh > 0) {
+    words += count(lakh, 'Lakh') + ' ';
+  }
+  if (thousand > 0) {
+    words += count(thousand, 'Thousand') + ' ';
+  }
+  if (hundred > 0) {
+    words += count(hundred, 'Hundred') + ' ';
+  }
+  if (remaining > 0) {
+    if (words !== '') {
+      words += 'and ';
+    }
+    words += count(remaining, '') + ' ';
+  }
+
+  return words.trim();
+}
+
+// Maps 31-day rows into a single table with 11 rows and 3 parallel sections (Days 1-10, 11-20, 21-31)
+function renderDailyWageTableRows(dayRows) {
+  const rows = [];
+  for (let i = 0; i < 11; i++) {
+    const d1 = i + 1; // 1 to 10
+    const d2 = i + 11; // 11 to 20
+    const d3 = i + 21; // 21 to 31
+
+    const r1 = dayRows.find(r => r.day === d1);
+    const r2 = dayRows.find(r => r.day === d2);
+    const r3 = dayRows.find(r => r.day === d3);
+
+    rows.push({
+      d1: r1 ? r1.day : '',
+      fn1: r1 ? r1.fnStatus : '',
+      an1: r1 ? r1.anStatus : '',
+      d2: r2 ? r2.day : '',
+      fn2: r2 ? r2.fnStatus : '',
+      an2: r2 ? r2.anStatus : '',
+      d3: r3 ? r3.day : '',
+      fn3: r3 ? r3.fnStatus : '',
+      an3: r3 ? r3.anStatus : ''
+    });
+  }
+  return rows;
+}
+
 export default function App() {
   // Database Mode State
   const [isDemoMode, setIsDemoMode] = useState(true);
@@ -146,6 +226,7 @@ export default function App() {
   const [reportYear, setReportYear] = useState(new Date().getFullYear());
   const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1); // 1-12
   const [printData, setPrintData] = useState(null);
+  const [selectedBatchWagers, setSelectedBatchWagers] = useState([]);
   
   // Dashboard mini calendar active selection states
   const [dashYear, setDashYear] = useState(new Date().getFullYear());
@@ -2452,6 +2533,85 @@ export default function App() {
     doc.save(`KSC_DailyWage_Report_${targetMonthStr}.pdf`);
   };
 
+  const calculateSingleEmployeeWages = (emp, year, month) => {
+    const targetMonthStr = `${year}-${String(month).padStart(2, '0')}`;
+    const empAttRecords = attendance.filter(
+      att => att.employee_id === emp.id && att.date.startsWith(targetMonthStr) && att.approval_status === 'Approved'
+    );
+    const numDays = new Date(year, month, 0).getDate();
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    let workedDays = 0;
+    const dayRows = [];
+
+    for (let day = 1; day <= numDays; day++) {
+      const dateStr = `${targetMonthStr}-${String(day).padStart(2, '0')}`;
+      const record = empAttRecords.find(a => a.date === dateStr);
+      const cellDate = new Date(year, month - 1, day);
+      const isFuture = cellDate > today;
+
+      let fnStatus = 'AB';
+      let anStatus = 'AB';
+
+      if (record) {
+        if (record.status === 'P' || record.status === 'OD' || record.status === 'TR') {
+          workedDays += 1.0;
+          fnStatus = 'P';
+          anStatus = 'P';
+        } else if (record.status === 'FH') {
+          workedDays += 0.5;
+          fnStatus = 'P';
+          anStatus = 'AB';
+        } else if (record.status === 'SH') {
+          workedDays += 0.5;
+          fnStatus = 'AB';
+          anStatus = 'P';
+        }
+      } else if (!isFuture) {
+        workedDays += 1.0;
+        fnStatus = 'P';
+        anStatus = 'P';
+      } else {
+        fnStatus = '-';
+        anStatus = '-';
+      }
+
+      dayRows.push({
+        day,
+        fnStatus,
+        anStatus
+      });
+    }
+
+    const rate = emp.daily_wage_rate || 0;
+    const maxDays = emp.max_working_days || 25;
+    const payableDays = Math.min(workedDays, maxDays);
+    const totalSalary = payableDays * rate;
+    const totalSalaryInWords = convertNumberToWords(totalSalary);
+
+    return {
+      employee: emp,
+      dayRows,
+      workedDays,
+      payableDays,
+      rate,
+      maxDays,
+      totalSalary,
+      totalSalaryInWords
+    };
+  };
+
+  const printDailyWageReportSingle = (emp, year = currentYear, month = currentMonth) => {
+    const report = calculateSingleEmployeeWages(emp, year, month);
+    setPrintData({
+      type: 'wages',
+      year,
+      month,
+      report
+    });
+  };
+
   const printEmployeeAttendance = (targetEmp, year = currentYear, month = currentMonth) => {
     const targetMonthStr = `${year}-${String(month).padStart(2, '0')}`;
     const empAttRecords = attendance.filter(
@@ -2467,36 +2627,66 @@ export default function App() {
     for (let day = 1; day <= numDays; day++) {
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const record = empAttRecords.find(a => a.date === dateStr);
-      const dayOfWeek = new Date(year, month - 1, day).getDay();
       const cellDate = new Date(year, month - 1, day);
-      
-      let dayStatus = '';
-      let remarks = '';
-
-      const isSunday = dayOfWeek === 0;
-      const isMonday = dayOfWeek === 1;
-      const isSecSat = isSecondSaturday(dateStr);
-      const matchedHols = holidays.filter(h => h.date === dateStr);
       const isFuture = cellDate > today;
 
+      let fnStatus = '-';
+      let anStatus = '-';
+      let statusShort = '';
+
       if (record) {
-        dayStatus = getStatusFullName(record.status);
-        remarks = record.remarks || '';
+        statusShort = record.status;
         summary[record.status] = (summary[record.status] || 0) + 1;
       } else if (!isFuture) {
-        dayStatus = 'Present (P) [Default]';
+        statusShort = 'P';
         summary['P'] = (summary['P'] || 0) + 1;
-      } else {
-        dayStatus = '-';
+      }
+
+      if (statusShort) {
+        if (statusShort === 'P' || statusShort === 'OD' || statusShort === 'TR') {
+          fnStatus = 'P';
+          anStatus = 'P';
+        } else if (statusShort === 'FH') {
+          fnStatus = 'P';
+          anStatus = 'AB';
+        } else if (statusShort === 'SH') {
+          fnStatus = 'AB';
+          anStatus = 'P';
+        } else if (statusShort === 'A' || statusShort === 'LOP') {
+          fnStatus = 'AB';
+          anStatus = 'AB';
+        } else {
+          fnStatus = statusShort;
+          anStatus = statusShort;
+        }
       }
 
       rows.push({
         day,
         weekday: new Date(year, month - 1, day).toLocaleDateString('en-IN', { weekday: 'short' }),
-        status: dayStatus,
-        remarks
+        fnStatus,
+        anStatus,
+        remarks: record?.remarks || ''
       });
     }
+
+    const empAllRecords = attendance.filter(
+      att => att.employee_id === targetEmp.id && att.date.startsWith(String(year)) && att.approval_status === 'Approved'
+    );
+    const clTaken = empAllRecords.filter(a => a.status === 'CL').length;
+    const mlTaken = empAllRecords.filter(a => a.status === 'ML').length;
+    const elTaken = empAllRecords.filter(a => a.status === 'EL').length;
+    const slTaken = empAllRecords.filter(a => a.status === 'SL').length;
+
+    const clLimit = isDemoMode ? (targetEmp.cl_limit ?? 15) : (leaveBalances[targetEmp.id]?.cl_limit ?? 15);
+    const mlLimit = isDemoMode ? (targetEmp.ml_limit ?? 15) : (leaveBalances[targetEmp.id]?.ml_limit ?? 15);
+    const elLimit = isDemoMode ? (targetEmp.el_limit ?? 20) : (leaveBalances[targetEmp.id]?.el_limit ?? 20);
+    const slLimit = isDemoMode ? (targetEmp.sl_limit ?? 10) : (leaveBalances[targetEmp.id]?.sl_limit ?? 10);
+
+    const cl_balance = Math.max(0, clLimit - clTaken);
+    const ml_balance = Math.max(0, mlLimit - mlTaken);
+    const el_balance = Math.max(0, elLimit - elTaken);
+    const sl_balance = Math.max(0, slLimit - slTaken);
 
     const calculatedLeavesCount = summary.CL + summary.ML + summary.EL + summary.SL + (summary.FH * 0.5) + (summary.SH * 0.5);
     const calculatedPresentCount = summary.P + summary.OD + summary.TR + (summary.FH * 0.5) + (summary.SH * 0.5);
@@ -2510,81 +2700,29 @@ export default function App() {
       rows,
       summary,
       calculatedPresentCount,
-      calculatedLeavesCount
+      calculatedLeavesCount,
+      lopCount: summary.A || 0,
+      cl_balance,
+      el_balance,
+      sl_balance,
+      ml_balance
     });
   };
 
   const printDailyWageReport = (year = currentYear, month = currentMonth) => {
-    const targetMonthStr = `${year}-${String(month).padStart(2, '0')}`;
-    const isRepOfficerRole = employees.some(e => e.reporting_officers?.includes(currentUser?.full_name));
-    const wageStaff = employees.filter(emp => {
-      if (emp.employment_category !== 'Daily Wage' || emp.is_archived) return false;
-      if (currentUser.role === 'Root Admin' || currentUser.role === 'Admin') return true;
-      if (isRepOfficerRole) {
-        return emp.reporting_officers && emp.reporting_officers.includes(currentUser.full_name);
-      }
-      return false;
+    if (selectedBatchWagers.length === 0) {
+      alert("Please select at least one daily wage employee for the report.");
+      return;
+    }
+    const reports = selectedBatchWagers.map(id => {
+      const emp = employees.find(e => e.id === id);
+      return calculateSingleEmployeeWages(emp, year, month);
     });
-
-    const rows = [];
-    const today = new Date();
-    today.setHours(0,0,0,0);
-
-    wageStaff.forEach((emp, index) => {
-      const numDays = new Date(year, month, 0).getDate();
-      let workedDays = 0;
-      let clDaysTaken = 0;
-
-      for (let day = 1; day <= numDays; day++) {
-        const dateStr = `${targetMonthStr}-${String(day).padStart(2, '0')}`;
-        const record = attendance.find(a => a.employee_id === emp.id && a.date === dateStr && a.approval_status === 'Approved');
-        
-        const dayOfWeek = new Date(year, month - 1, day).getDay();
-        const isSunday = dayOfWeek === 0;
-        const isMonday = dayOfWeek === 1;
-        const isSecSat = isSecondSaturday(dateStr);
-        const hasCustomHol = holidays.some(h => h.date === dateStr);
-        const cellDate = new Date(year, month - 1, day);
-        const isFuture = cellDate > today;
-
-        if (record) {
-          if (record.status === 'P' || record.status === 'OD' || record.status === 'TR') workedDays += 1.0;
-          else if (record.status === 'FH' || record.status === 'SH') workedDays += 0.5;
-          else if (record.status === 'CL') clDaysTaken += 1.0;
-        } else if (!isFuture) {
-          workedDays += 1.0;
-        }
-      }
-
-      const clLimit = isDemoMode
-        ? (emp.cl_limit ?? 3)
-        : (leaveBalances[emp.id]?.cl_limit ?? 3);
-
-      const paidLeaves = Math.min(clLimit, clDaysTaken);
-      const rate = emp.daily_wage_rate || 900;
-      const maxDays = emp.max_working_days || 25;
-      const totalPaidDays = workedDays + paidLeaves;
-      const payableDays = Math.min(totalPaidDays, maxDays);
-      const totalWage = payableDays * rate;
-
-      rows.push({
-        index: index + 1,
-        empNo: emp.employee_number,
-        name: emp.full_name,
-        designation: emp.designation,
-        rate: `Rs. ${rate}/day`,
-        presentDays: `${workedDays} + ${paidLeaves} CL (${totalPaidDays}d)`,
-        payableDays: `${payableDays} days (Max ${maxDays})`,
-        totalSalary: `Rs. ${totalWage.toLocaleString()}`
-      });
-    });
-
     setPrintData({
-      type: 'wages',
+      type: 'batch-wages',
       year,
       month,
-      targetMonthStr,
-      rows
+      reports
     });
   };
 
@@ -3953,14 +4091,15 @@ export default function App() {
   const renderReportsPanel = () => {
     const isRepOfficerRole = employees.some(e => e.reporting_officers?.includes(currentUser?.full_name));
 
-    const visibleEmployees = (currentUser.role === 'Root Admin' || currentUser.role === 'Admin'
+    const visibleEmployees = (currentUser.role === 'Root Admin'
       ? employees.filter(emp => !emp.is_archived)
       : isRepOfficerRole
         ? employees.filter(emp => emp.id === currentUser.id || (emp.reporting_officers && emp.reporting_officers.includes(currentUser.full_name) && !emp.is_archived))
         : employees.filter(emp => emp.id === currentUser.id)
     ).filter(emp => currentUser.role === 'Root Admin' || !emp.is_hidden || emp.id === currentUser.id);
 
-    const showDailyWagePanel = currentUser.role !== 'Employee' || isRepOfficerRole;
+    const visibleWagers = visibleEmployees.filter(emp => emp.employment_category === 'Daily Wage');
+    const showDailyWagePanel = currentUser.role === 'Root Admin' || isRepOfficerRole || (currentUser.employment_category === 'Daily Wage');
 
     return (
       <div className="dashboard-layout">
@@ -3998,27 +4137,36 @@ export default function App() {
 
         <div className="glass-card">
           <h3 style={{ marginBottom: '15px' }}>
-            {currentUser.role === 'Employee' ? 'My Attendance Sheet' : 'Monthly Attendance Sheets'}
+            {currentUser.role === 'Employee' ? 'My Monthly Sheets' : 'Monthly Sheets'}
           </h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '20px' }}>
             {currentUser.role === 'Employee' 
-              ? 'Generate and export your fully detailed monthly attendance sheet including calendar grid and summaries as formatted PDF.'
-              : 'Generate and export fully detailed monthly attendance sheets including calendar grid and summaries as formatted PDFs.'
+              ? 'Generate and export your fully detailed monthly sheet as formatted PDF.'
+              : 'Generate and export fully detailed monthly sheets as formatted PDFs.'
             }
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {visibleEmployees.map(emp => (
-              <div key={emp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-sm)' }}>
-                <div>
-                  <strong>{emp.full_name}</strong> ({emp.employee_number})
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{emp.designation} | {emp.employment_category}</div>
+            {visibleEmployees.map(emp => {
+              const isDailyWage = emp.employment_category === 'Daily Wage';
+              return (
+                <div key={emp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-sm)' }}>
+                  <div>
+                    <strong>{emp.full_name}</strong> ({emp.employee_number})
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{emp.designation} | {emp.employment_category}</div>
+                  </div>
+                  {isDailyWage ? (
+                    <button className="btn btn-success" style={{ padding: '8px 16px' }} onClick={() => printDailyWageReportSingle(emp, reportYear, reportMonth)}>
+                      <FileText size={16} /> Print Salary Sheet
+                    </button>
+                  ) : (
+                    <button className="btn btn-secondary" style={{ padding: '8px 16px' }} onClick={() => printEmployeeAttendance(emp, reportYear, reportMonth)}>
+                      <FileText size={16} /> Print Attendance Sheet
+                    </button>
+                  )}
                 </div>
-                <button className="btn btn-secondary" style={{ padding: '8px 16px' }} onClick={() => printEmployeeAttendance(emp, reportYear, reportMonth)}>
-                  <FileText size={16} /> Print / Save PDF
-                </button>
-              </div>
-            ))}
+              );
+            })}
             {visibleEmployees.length === 0 && (
               <div style={{ textTransform: 'uppercase', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>
                 No active employee records found
@@ -4029,21 +4177,104 @@ export default function App() {
 
         {showDailyWagePanel ? (
           <div className="glass-card">
-            <h3 style={{ marginBottom: '15px' }}>Daily Wage Reports & Salaries</h3>
+            <h3 style={{ marginBottom: '15px' }}>Daily Wage Salary Sheets (Batch)</h3>
             <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '20px' }}>
-              Automatically calculate monthly pay summaries for daily wage earners based on present status entries and export as PDF.
+              Select Daily Wage earners in the order you want to print/export their salary sheets. Click a name to add it to the print sequence.
             </p>
 
-            <div style={{ padding: '20px', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,0.01)', textAlign: 'center' }}>
-              <IndianRupee size={36} style={{ color: 'var(--accent-teal)', marginBottom: '10px' }} />
-              <h4 style={{ marginBottom: '8px' }}>Monthly Wages Salary Sheet</h4>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '15px' }}>
-                Calculates salaries for all daily wage employees for {new Date(reportYear, reportMonth - 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}.
-              </p>
-              <button className="btn btn-success" onClick={() => printDailyWageReport(reportYear, reportMonth)}>
-                <FileText size={16} /> Print Wages Report
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+              <button 
+                className="btn btn-secondary" 
+                style={{ padding: '6px 12px', fontSize: '12px' }}
+                onClick={() => setSelectedBatchWagers(visibleWagers.map(w => w.id))}
+              >
+                Select All
+              </button>
+              <button 
+                className="btn btn-secondary" 
+                style={{ padding: '6px 12px', fontSize: '12px' }}
+                onClick={() => setSelectedBatchWagers([])}
+              >
+                Clear Selection
               </button>
             </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', paddingRight: '5px', marginBottom: '20px', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-sm)', padding: '10px' }}>
+              {visibleWagers.map(emp => {
+                const selIdx = selectedBatchWagers.indexOf(emp.id);
+                const isSelected = selIdx !== -1;
+                return (
+                  <div 
+                    key={emp.id} 
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedBatchWagers(selectedBatchWagers.filter(id => id !== emp.id));
+                      } else {
+                        setSelectedBatchWagers([...selectedBatchWagers, emp.id]);
+                      }
+                    }}
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between', 
+                      padding: '10px 12px', 
+                      border: '1px solid var(--glass-border)', 
+                      borderRadius: 'var(--radius-sm)', 
+                      background: isSelected ? 'rgba(13, 148, 136, 0.08)' : 'rgba(255, 255, 255, 0.01)',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        width: '18px',
+                        height: '18px',
+                        border: '2px solid var(--accent-teal)',
+                        borderRadius: '3px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: isSelected ? 'var(--accent-teal)' : 'transparent'
+                      }}>
+                        {isSelected && <Check size={12} style={{ color: '#ffffff' }} />}
+                      </div>
+                      <div>
+                        <strong>{emp.full_name}</strong>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          {emp.designation} | Wage: ₹{emp.daily_wage_rate}/day
+                        </div>
+                      </div>
+                    </div>
+                    {isSelected && (
+                      <span style={{ 
+                        background: 'var(--accent-teal)', 
+                        color: '#ffffff', 
+                        fontSize: '11px', 
+                        fontWeight: 'bold', 
+                        padding: '2px 8px', 
+                        borderRadius: '12px' 
+                      }}>
+                        Order #{selIdx + 1}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+              {visibleWagers.length === 0 && (
+                <div style={{ textTransform: 'uppercase', fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', padding: '15px' }}>
+                  No Daily Wage employees found
+                </div>
+              )}
+            </div>
+
+            <button 
+              className="btn btn-success" 
+              style={{ width: '100%', padding: '10px' }}
+              disabled={selectedBatchWagers.length === 0}
+              onClick={() => printDailyWageReport(reportYear, reportMonth)}
+            >
+              <FileText size={16} /> Print Selected Salary Sheets ({selectedBatchWagers.length})
+            </button>
           </div>
         ) : (
           <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '30px' }}>
@@ -4986,57 +5217,72 @@ export default function App() {
       {/* 7. Premium, Native Print Layout Gated Grid (Bypasses popup blockers completely!) */}
       {printData && printData.type === 'attendance' && (
         <div className="print-report-container">
-          <div className="header">
-            <h1>KERALA SCIENCE CITY</h1>
-            <h2>Monthly Employee Attendance Report</h2>
-            <p>Month/Year: {String(printData.month).padStart(2, '0')} / {printData.year}</p>
+          <div className="header" style={{ textAlign: 'center', marginBottom: '15px' }}>
+            <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>KERALA STATE SCIENCE AND TECHNOLOGY MUSEUM</h1>
+            <h2 style={{ fontSize: '14px', margin: '2px 0 0 0', fontWeight: 'bold' }}>KERALA SCIENCE CITY</h2>
+            <h3 style={{ fontSize: '13px', margin: '4px 0 0 0', textDecoration: 'underline' }}>Monthly Employee Attendance Report</h3>
+            <p style={{ fontSize: '12px', margin: '4px 0 0 0', fontWeight: 'bold' }}>
+              {new Date(printData.year, printData.month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+            </p>
           </div>
           <div className="divider"></div>
-          <div className="info-grid">
-            <div className="info-item"><strong>Employee Name:</strong> {printData.targetEmp.full_name}</div>
-            <div className="info-item"><strong>Employee Number:</strong> {printData.targetEmp.employee_number}</div>
-            <div className="info-item"><strong>Employment Type:</strong> {printData.targetEmp.employment_category}</div>
-            <div className="info-item"><strong>Designation:</strong> {printData.targetEmp.designation}</div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px', fontSize: '12px' }}>
+            <div><strong>Employee Name:</strong> {printData.targetEmp.full_name}</div>
+            <div><strong>Employee Number:</strong> {printData.targetEmp.employee_number}</div>
+            <div><strong>Employment Type:</strong> {printData.targetEmp.employment_category}</div>
+            <div><strong>Designation:</strong> {printData.targetEmp.designation}</div>
+            <div><strong>Date of Joining:</strong> {printData.targetEmp.joining_date || 'N/A'}</div>
           </div>
-          <table>
+
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '15px' }}>
             <thead>
               <tr>
-                <th style={{ width: '10%' }}>Day</th>
-                <th style={{ width: '15%' }}>Weekday</th>
-                <th style={{ width: '45%' }}>Attendance Status</th>
-                <th style={{ width: '30%' }}>Remarks</th>
+                <th style={{ width: '10%', textAlign: 'center', border: '1px solid #000000', padding: '4px' }}>Day</th>
+                <th style={{ width: '15%', textAlign: 'center', border: '1px solid #000000', padding: '4px' }}>Weekday</th>
+                <th style={{ width: '20%', textAlign: 'center', border: '1px solid #000000', padding: '4px' }}>F.N</th>
+                <th style={{ width: '20%', textAlign: 'center', border: '1px solid #000000', padding: '4px' }}>A.N</th>
+                <th style={{ width: '35%', border: '1px solid #000000', padding: '4px' }}>Remarks</th>
               </tr>
             </thead>
             <tbody>
               {printData.rows.map(r => (
                 <tr key={r.day}>
-                  <td>{r.day}</td>
-                  <td>{r.weekday}</td>
-                  <td>{r.status}</td>
-                  <td>{r.remarks}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{r.day}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{r.weekday}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px', fontWeight: r.fnStatus === 'P' ? 'bold' : 'normal' }}>{r.fnStatus}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px', fontWeight: r.anStatus === 'P' ? 'bold' : 'normal' }}>{r.anStatus}</td>
+                  <td style={{ border: '1px solid #000000', padding: '3px' }}>{r.remarks}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <div className="summary-section">
-            <h3 style={{ marginTop: 0, color: '#111827' }}>Tally Summary</h3>
-            <div className="summary-grid">
+
+          <div className="summary-section" style={{ borderTop: '1px solid #000000', paddingTop: '10px', fontSize: '11px' }}>
+            <strong style={{ display: 'block', fontSize: '12px', marginBottom: '6px' }}>Tally Summary</strong>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
               <div>
-                <div className="info-item">Calculated Present Days: <strong>{printData.calculatedPresentCount}</strong></div>
-                <div className="info-item">Total Formulated Leaves: <strong>{printData.calculatedLeavesCount}</strong></div>
+                <div>Total Leaves Taken: <strong>{printData.calculatedLeavesCount}</strong></div>
+                <div>Loss of Pays (LOP): <strong>{printData.lopCount}</strong></div>
               </div>
               <div>
-                <div className="info-item">System Holidays & Weekly Offs: <strong>{printData.summary.H + printData.summary.WO}</strong></div>
+                <div>Remaining Casual Leave: <strong>{printData.cl_balance}</strong></div>
+                <div>Remaining Earned Leave: <strong>{printData.el_balance}</strong></div>
+                <div>Remaining Sick Leave: <strong>{printData.sl_balance}</strong></div>
+                {printData.targetEmp.gender === 'Female' && (
+                  <div>Remaining Maternity Leave: <strong>{printData.ml_balance}</strong></div>
+                )}
               </div>
             </div>
           </div>
-          <div className="signatures">
-            <div className="signature-box">
-              <div className="signature-line"></div>
+
+          <div className="signatures" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px', fontSize: '12px' }}>
+            <div className="signature-box" style={{ width: '200px', textAlign: 'center' }}>
+              <div className="signature-line" style={{ borderTop: '1px solid #000000', marginBottom: '5px' }}></div>
               Reporting Officer
             </div>
-            <div className="signature-box">
-              <div className="signature-line"></div>
+            <div className="signature-box" style={{ width: '200px', textAlign: 'center' }}>
+              <div className="signature-line" style={{ borderTop: '1px solid #000000', marginBottom: '5px' }}></div>
               Administrative Officer
             </div>
           </div>
@@ -5045,52 +5291,213 @@ export default function App() {
 
       {printData && printData.type === 'wages' && (
         <div className="print-report-container">
-          <div className="header">
-            <h1>KERALA SCIENCE CITY</h1>
-            <h2>Daily Wage Calculations & Salary Statement</h2>
-            <p>Month/Year: {new Date(printData.year, printData.month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</p>
+          <div className="page-number-header" style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '12px', marginBottom: '10px' }}>1</div>
+          <div className="header" style={{ textAlign: 'center', marginBottom: '15px' }}>
+            <h1 style={{ fontSize: '18px', fontWeight: 'bold', letterSpacing: '0.5px', margin: 0 }}>KERALA STATE SCIENCE AND TECHNOLOGY MUSEUM</h1>
+            <h2 style={{ fontSize: '13px', margin: '2px 0 0 0', fontWeight: 'normal' }}>VIKAS BHAVAN. P.O, THIRUVANANTHAPURAM</h2>
+            <h3 style={{ fontSize: '13px', margin: '4px 0 0 0', fontWeight: 'bold', textDecoration: 'underline' }}>ATTENDANCE SHEET OF INCUMBENTS ENGAGED ON DAILY WAGES</h3>
+            <p style={{ fontSize: '10px', margin: '4px 0 0 0', fontStyle: 'italic' }}>
+              These incumbents will have no claim whatsoever for any other benefits other than the wages for work done.
+            </p>
           </div>
-          <div className="divider"></div>
-          <table>
+          
+          <div className="daily-wage-fields" style={{ marginBottom: '15px', fontSize: '12px' }}>
+            <div style={{ display: 'flex', marginBottom: '4px' }}>
+              <span style={{ width: '220px', fontWeight: 'bold' }}>Name and address of person</span>
+              <span style={{ width: '20px', textAlign: 'center' }}>:</span>
+              <span style={{ flexGrow: 1 }}>
+                <strong>{printData.report.employee.full_name}</strong>
+                {printData.report.employee.address && (
+                  <div style={{ fontWeight: 'normal', marginTop: '2px', whiteSpace: 'pre-wrap', lineHeight: '1.3' }}>
+                    {printData.report.employee.address}
+                  </div>
+                )}
+              </span>
+            </div>
+            <div style={{ display: 'flex', marginBottom: '4px' }}>
+              <span style={{ width: '220px', fontWeight: 'bold' }}>Educational Qualification</span>
+              <span style={{ width: '20px', textAlign: 'center' }}>:</span>
+              <span style={{ flexGrow: 1 }}>{printData.report.employee.educational_qualification || 'Not provided'}</span>
+            </div>
+            <div style={{ display: 'flex', marginBottom: '4px' }}>
+              <span style={{ width: '220px', fontWeight: 'bold' }}>Engaged as</span>
+              <span style={{ width: '20px', textAlign: 'center' }}>:</span>
+              <span style={{ flexGrow: 1 }}>{printData.report.employee.designation}</span>
+            </div>
+            <div style={{ display: 'flex', marginBottom: '4px' }}>
+              <span style={{ width: '220px', fontWeight: 'bold' }}>Rate of wages</span>
+              <span style={{ width: '20px', textAlign: 'center' }}>:</span>
+              <span style={{ flexGrow: 1 }}>Rs.{printData.report.rate}/- (Max. Rs. {printData.report.rate * printData.report.maxDays}/-)</span>
+            </div>
+            <div style={{ display: 'flex', marginBottom: '4px' }}>
+              <span style={{ width: '220px', fontWeight: 'bold' }}>Month and year</span>
+              <span style={{ width: '20px', textAlign: 'center' }}>:</span>
+              <span style={{ flexGrow: 1 }}>
+                {new Date(printData.year, printData.month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+              </span>
+            </div>
+          </div>
+
+          <table className="daily-wage-print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '15px' }}>
             <thead>
               <tr>
-                <th style={{ width: '5%' }}>#</th>
-                <th style={{ width: '12%' }}>Emp No</th>
-                <th style={{ width: '25%' }}>Employee Name</th>
-                <th style={{ width: '18%' }}>Designation</th>
-                <th style={{ width: '12%' }}>Wage Rate</th>
-                <th style={{ width: '13%' }}>Present Days</th>
-                <th style={{ width: '15%' }}>Payable Days</th>
-                <th style={{ width: '15%' }}>Total Salary</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
               </tr>
             </thead>
             <tbody>
-              {printData.rows.map(r => (
-                <tr key={r.index}>
-                  <td>{r.index}</td>
-                  <td><strong>{r.empNo}</strong></td>
-                  <td>{r.name}</td>
-                  <td>{r.designation}</td>
-                  <td>{r.rate}</td>
-                  <td>{r.presentDays}</td>
-                  <td>{r.payableDays}</td>
-                  <td><strong>{r.totalSalary}</strong></td>
+              {renderDailyWageTableRows(printData.report.dayRows).map((row, idx) => (
+                <tr key={idx}>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d1}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn1}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an1}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d2}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn2}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an2}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d3}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn3}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an3}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <div className="signatures">
-            <div className="signature-box">
-              <div className="signature-line"></div>
-              Accounts Clerk
+
+          <div style={{ fontSize: '11px', lineHeight: '1.5', marginBottom: '20px' }}>
+            <p style={{ margin: '0 0 8px 0', textAlign: 'justify' }}>
+              Certified that he/she had worked for <strong>{printData.report.payableDays} days</strong> @ Rs.{printData.report.rate}/- Rs.<strong>{printData.report.totalSalary} /-</strong> (Rupees <strong>{printData.report.totalSalaryInWords} only</strong>) during the month of <strong>{new Date(printData.year, printData.month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</strong>. Head of Account: Salary. He/ She was engaged at Science City Kottayam as per directions.
+            </p>
+            <p style={{ margin: '0', fontStyle: 'italic', color: '#374151' }}>
+              This is not a cash receipt. This should invariably be attached to the payment voucher when payment is made.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '30px', fontSize: '12px' }}>
+            <div style={{ width: '200px' }}>
+              <strong>Verified by</strong>
+              <div style={{ marginTop: '15px', fontSize: '10px', color: '#4b5563' }}>Name & designation</div>
             </div>
-            <div className="signature-box">
-              <div className="signature-line"></div>
-              Administrative Officer Approval
+            <div style={{ width: '150px', textAlign: 'center' }}>
+              <strong>Prepared</strong>
+            </div>
+            <div style={{ width: '250px', textAlign: 'right' }}>
+              <div style={{ minHeight: '30px' }}></div>
+              <strong>for ASSISTANT DIRECTOR</strong>
             </div>
           </div>
         </div>
       )}
+
+      {printData && printData.type === 'batch-wages' && printData.reports.map((report, idx) => (
+        <div key={report.employee.id} className="print-report-container print-page-break">
+          <div className="page-number-header" style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '12px', marginBottom: '10px' }}>{idx + 1}</div>
+          <div className="header" style={{ textAlign: 'center', marginBottom: '15px' }}>
+            <h1 style={{ fontSize: '18px', fontWeight: 'bold', letterSpacing: '0.5px', margin: 0 }}>KERALA STATE SCIENCE AND TECHNOLOGY MUSEUM</h1>
+            <h2 style={{ fontSize: '13px', margin: '2px 0 0 0', fontWeight: 'normal' }}>VIKAS BHAVAN. P.O, THIRUVANANTHAPURAM</h2>
+            <h3 style={{ fontSize: '13px', margin: '4px 0 0 0', fontWeight: 'bold', textDecoration: 'underline' }}>ATTENDANCE SHEET OF INCUMBENTS ENGAGED ON DAILY WAGES</h3>
+            <p style={{ fontSize: '10px', margin: '4px 0 0 0', fontStyle: 'italic' }}>
+              These incumbents will have no claim whatsoever for any other benefits other than the wages for work done.
+            </p>
+          </div>
+          
+          <div className="daily-wage-fields" style={{ marginBottom: '15px', fontSize: '12px' }}>
+            <div style={{ display: 'flex', marginBottom: '4px' }}>
+              <span style={{ width: '220px', fontWeight: 'bold' }}>Name and address of person</span>
+              <span style={{ width: '20px', textAlign: 'center' }}>:</span>
+              <span style={{ flexGrow: 1 }}>
+                <strong>{report.employee.full_name}</strong>
+                {report.employee.address && (
+                  <div style={{ fontWeight: 'normal', marginTop: '2px', whiteSpace: 'pre-wrap', lineHeight: '1.3' }}>
+                    {report.employee.address}
+                  </div>
+                )}
+              </span>
+            </div>
+            <div style={{ display: 'flex', marginBottom: '4px' }}>
+              <span style={{ width: '220px', fontWeight: 'bold' }}>Educational Qualification</span>
+              <span style={{ width: '20px', textAlign: 'center' }}>:</span>
+              <span style={{ flexGrow: 1 }}>{report.employee.educational_qualification || 'Not provided'}</span>
+            </div>
+            <div style={{ display: 'flex', marginBottom: '4px' }}>
+              <span style={{ width: '220px', fontWeight: 'bold' }}>Engaged as</span>
+              <span style={{ width: '20px', textAlign: 'center' }}>:</span>
+              <span style={{ flexGrow: 1 }}>{report.employee.designation}</span>
+            </div>
+            <div style={{ display: 'flex', marginBottom: '4px' }}>
+              <span style={{ width: '220px', fontWeight: 'bold' }}>Rate of wages</span>
+              <span style={{ width: '20px', textAlign: 'center' }}>:</span>
+              <span style={{ flexGrow: 1 }}>Rs.{report.rate}/- (Max. Rs. {report.rate * report.maxDays}/-)</span>
+            </div>
+            <div style={{ display: 'flex', marginBottom: '4px' }}>
+              <span style={{ width: '220px', fontWeight: 'bold' }}>Month and year</span>
+              <span style={{ width: '20px', textAlign: 'center' }}>:</span>
+              <span style={{ flexGrow: 1 }}>
+                {new Date(printData.year, printData.month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+              </span>
+            </div>
+          </div>
+
+          <table className="daily-wage-print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '15px' }}>
+            <thead>
+              <tr>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
+              </tr>
+            </thead>
+            <tbody>
+              {renderDailyWageTableRows(report.dayRows).map((row, idx) => (
+                <tr key={idx}>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d1}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn1}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an1}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d2}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn2}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an2}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d3}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn3}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an3}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div style={{ fontSize: '11px', lineHeight: '1.5', marginBottom: '20px' }}>
+            <p style={{ margin: '0 0 8px 0', textAlign: 'justify' }}>
+              Certified that he/she had worked for <strong>{report.payableDays} days</strong> @ Rs.{report.rate}/- Rs.<strong>{report.totalSalary} /-</strong> (Rupees <strong>{report.totalSalaryInWords} only</strong>) during the month of <strong>{new Date(printData.year, printData.month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</strong>. Head of Account: Salary. He/ She was engaged at Science City Kottayam as per directions.
+            </p>
+            <p style={{ margin: '0', fontStyle: 'italic', color: '#374151' }}>
+              This is not a cash receipt. This should invariably be attached to the payment voucher when payment is made.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '30px', fontSize: '12px' }}>
+            <div style={{ width: '200px' }}>
+              <strong>Verified by</strong>
+              <div style={{ marginTop: '15px', fontSize: '10px', color: '#4b5563' }}>Name & designation</div>
+            </div>
+            <div style={{ width: '150px', textAlign: 'center' }}>
+              <strong>Prepared</strong>
+            </div>
+            <div style={{ width: '250px', textAlign: 'right' }}>
+              <div style={{ minHeight: '30px' }}></div>
+              <strong>for ASSISTANT DIRECTOR</strong>
+            </div>
+          </div>
+        </div>
+      ))}
     </>
   );
 }
