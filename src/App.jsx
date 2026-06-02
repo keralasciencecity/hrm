@@ -4,11 +4,25 @@ import {
   Lock, Settings, FileText, Plus, Trash, Check, X, 
   Gift, AlertCircle, DollarSign, IndianRupee, CheckCircle, Eye, 
   LogOut, Shield, ChevronLeft, ChevronRight, UserPlus, 
-  Edit3, RotateCcw, Search, Cake, HardDrive, Key, CheckSquare, AlertTriangle, Menu, Sun, Moon, Bell
+  Edit3, RotateCcw, Search, Cake, HardDrive, Key, CheckSquare, AlertTriangle, Menu, Sun, Moon, Bell,
+  Mail, Phone
 } from 'lucide-react';
 import { supabase, resolveIdentifierToEmail } from './supabase';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+// WhatsApp icon SVG component
+const WhatsAppIcon = ({ size = 12, style }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 448 512" 
+    width={size} 
+    height={size} 
+    style={{ fill: 'currentColor', ...style }}
+  >
+    <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.3 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7 .9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/>
+  </svg>
+);
 
 // ==========================================
 // SEED DATA FOR DEMO MODE (FALLBACK)
@@ -460,10 +474,31 @@ export default function App() {
     if (emp.joining_date && dateStr < emp.joining_date) return;
 
     const isPresent = ['P', 'OD', 'TR', 'FH', 'SH'].includes(status);
-    if (!isPresent) return;
-
     const isHol = holidays.some(h => h.date === dateStr) || isSecondSaturday(dateStr);
-    if (!isHol) return;
+
+    if (!isPresent || !isHol) {
+      // Purge any existing credit for this holiday date
+      if (isDemoMode) {
+        const coffList = JSON.parse(localStorage.getItem('ksc_c_off') || '[]');
+        const filteredList = coffList.filter(c => !(c.employee_id === employeeId && c.date_worked === dateStr));
+        if (coffList.length !== filteredList.length) {
+          localStorage.setItem('ksc_c_off', JSON.stringify(filteredList));
+          loadDemoData();
+        }
+      } else {
+        try {
+          await supabase
+            .from('c_off_credits')
+            .delete()
+            .eq('employee_id', employeeId)
+            .eq('date_worked', dateStr);
+          loadSupabaseData();
+        } catch (err) {
+          console.error("Failed to delete invalid holiday C-Off credit:", err);
+        }
+      }
+      return;
+    }
 
     const yearStr = dateStr.split('-')[0];
 
@@ -708,6 +743,19 @@ export default function App() {
         console.error("Failed to insert C-Off credit to Supabase:", err);
       }
     }
+  };
+
+  const refreshCOffForDate = async (employeeId, dateStr, tempAttendanceList = null) => {
+    const emp = employees.find(e => e.id === employeeId);
+    if (!emp || !emp.co_eligible) return;
+
+    const listToUse = tempAttendanceList || attendance;
+    const rec = listToUse.find(a => a.employee_id === employeeId && a.date === dateStr);
+    const isApproved = rec && rec.approval_status === 'Approved';
+    const status = isApproved ? rec.status : 'A';
+
+    await checkAndCreditHolidayCOff(employeeId, dateStr, status);
+    await checkAndCreditSundayMondayCOff(employeeId, dateStr, listToUse);
   };
 
   const runPassiveCOffBackfill = async (employeeId) => {
@@ -1041,6 +1089,28 @@ export default function App() {
                 }
               }
             }
+          }
+        } else {
+          // Purge if it was previously credited but now they are not present on the holiday!
+          const invalidCredits = latestCredits.filter(c => c.employee_id === employeeId && c.date_worked === dateStr);
+          if (invalidCredits.length > 0) {
+            console.log(`Purging invalid holiday C-Off credits for ${dateStr} because employee is not present`);
+            if (isDemoMode) {
+              const coffList = JSON.parse(localStorage.getItem('ksc_c_off') || '[]');
+              const filteredList = coffList.filter(c => !(c.employee_id === employeeId && c.date_worked === dateStr));
+              localStorage.setItem('ksc_c_off', JSON.stringify(filteredList));
+            } else {
+              try {
+                await supabase
+                  .from('c_off_credits')
+                  .delete()
+                  .eq('employee_id', employeeId)
+                  .eq('date_worked', dateStr);
+              } catch (err) {
+                console.error("Failed to delete invalid holiday C-Off credit:", err);
+              }
+            }
+            anyUpdated = true;
           }
         }
       }
@@ -2294,10 +2364,9 @@ export default function App() {
         localStorage.setItem('ksc_c_off', JSON.stringify(coffList));
       }
 
-      // Trigger C-Off credit checks if immediately Approved
-      if (newRecord.approval_status === 'Approved' && viewedEmployee.co_eligible) {
-        await checkAndCreditHolidayCOff(viewedEmployeeIdVal, reqDate, reqStatus);
-        await checkAndCreditSundayMondayCOff(viewedEmployeeIdVal, reqDate, stored);
+      // Trigger C-Off credit checks & refresh
+      if (viewedEmployee.co_eligible) {
+        await refreshCOffForDate(viewedEmployeeIdVal, reqDate, stored);
       }
 
       localStorage.setItem('ksc_attendance', JSON.stringify(stored));
@@ -2345,10 +2414,9 @@ export default function App() {
           if (coffErr) throw coffErr;
         }
 
-        // Trigger C-Off credit checks if immediately Approved
-        if (recordData.approval_status === 'Approved' && viewedEmployee.co_eligible) {
-          await checkAndCreditHolidayCOff(viewedEmployeeIdVal, reqDate, reqStatus);
-          await checkAndCreditSundayMondayCOff(viewedEmployeeIdVal, reqDate, [
+        // Trigger C-Off credit checks & refresh
+        if (viewedEmployee.co_eligible) {
+          await refreshCOffForDate(viewedEmployeeIdVal, reqDate, [
             ...attendance.filter(a => !(a.employee_id === viewedEmployeeIdVal && a.date === reqDate)),
             recordData
           ]);
@@ -2388,13 +2456,12 @@ export default function App() {
         return att;
       });
       
-      if (action === 'Approved') {
-        const emp = employees.find(e => e.id === item.employee_id);
-        if (emp && emp.co_eligible) {
-          await checkAndCreditHolidayCOff(item.employee_id, item.date, item.status);
-          await checkAndCreditSundayMondayCOff(item.employee_id, item.date, updated);
-        }
-      } else if (action === 'Rejected' && item.status === 'CO') {
+      const emp = employees.find(e => e.id === item.employee_id);
+      if (emp && emp.co_eligible) {
+        await refreshCOffForDate(item.employee_id, item.date, updated);
+      }
+
+      if (action === 'Rejected' && item.status === 'CO') {
         const coffList = JSON.parse(localStorage.getItem('ksc_c_off') || '[]');
         const creditIdx = coffList.findIndex(c => c.employee_id === item.employee_id && c.used_date === item.date && c.status === 'Used');
         if (creditIdx !== -1) {
@@ -2421,16 +2488,16 @@ export default function App() {
 
         if (error) throw error;
 
-        if (action === 'Approved') {
-          const emp = employees.find(e => e.id === item.employee_id);
-          if (emp && emp.co_eligible) {
-            await checkAndCreditHolidayCOff(item.employee_id, item.date, item.status);
-            await checkAndCreditSundayMondayCOff(item.employee_id, item.date, [
-              ...attendance.filter(a => a.id !== item.id),
-              { ...item, approval_status: 'Approved' }
-            ]);
-          }
-        } else if (action === 'Rejected' && item.status === 'CO') {
+        const emp = employees.find(e => e.id === item.employee_id);
+        if (emp && emp.co_eligible) {
+          const updatedList = [
+            ...attendance.filter(a => a.id !== item.id),
+            { ...item, approval_status: action }
+          ];
+          await refreshCOffForDate(item.employee_id, item.date, updatedList);
+        }
+
+        if (action === 'Rejected' && item.status === 'CO') {
           const { error: releaseErr } = await supabase
             .from('c_off_credits')
             .update({ status: 'Available', used_date: null })
@@ -3372,25 +3439,41 @@ export default function App() {
 
         {/* Active Announcements Notice Board */}
         {activeAnnouncements.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
             {activeAnnouncements.map(ann => (
-              <div key={ann.id} className="notification-banner info" style={{ borderRadius: 'var(--radius-md)', background: 'rgba(37, 99, 235, 0.08)', border: '1px solid rgba(37, 99, 235, 0.25)', display: 'flex', gap: '15px', alignItems: 'flex-start', padding: '15px' }}>
-                <Bell size={22} style={{ color: 'var(--accent-blue)', flexShrink: 0, marginTop: '2px' }} />
+              <div key={ann.id} className="announcement-attention-card">
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(239, 68, 68, 0.12)' }}>
+                    <Bell size={20} className="announcement-bell" style={{ color: '#ef4444' }} />
+                    <span style={{ position: 'absolute', top: '2px', right: '2px', display: 'block', width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444', border: '2.5px solid var(--bg-secondary)', animation: 'dot-pulse 1.5s infinite cubic-bezier(0.66, 0, 0, 1)' }} />
+                  </div>
+                </div>
                 <div style={{ flexGrow: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong style={{ fontSize: '15px', color: 'var(--text-primary)' }}>{ann.title}</strong>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                      <div className="announcement-badge">
+                        <span className="pulse-dot" /> അടിയന്തിര അറിയിപ്പ് / Broadcast Announcement
+                      </div>
+                      <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+                        {ann.title}
+                      </h4>
+                    </div>
                     {currentUser.role === 'Root Admin' && (
                       <button 
                         onClick={() => handleDeleteAnnouncement(ann.id)} 
-                        style={{ background: 'none', border: 'none', color: 'var(--accent-rose)', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        className="btn-text-delete"
+                        style={{ background: 'rgba(239, 68, 68, 0.08)', border: 'none', borderRadius: 'var(--radius-sm)', padding: '4px 8px', color: '#ef4444', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.2s' }}
                       >
                         <Trash size={12} /> Delete
                       </button>
                     )}
                   </div>
-                  <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{ann.message}</p>
-                  <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                    Broadcasted by <strong>{ann.created_by_name}</strong> on {new Date(ann.created_at).toLocaleDateString('en-IN', { dateStyle: 'medium' })} at {new Date(ann.created_at).toLocaleTimeString('en-IN', { timeStyle: 'short' })}
+                  <p style={{ margin: '12px 0 0 0', fontSize: '13.5px', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: '1.6', fontWeight: '500' }}>
+                    {ann.message}
+                  </p>
+                  <div style={{ marginTop: '14px', fontSize: '11px', color: 'var(--text-muted)', borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                    <span>Broadcasted by: <strong style={{ color: 'var(--text-secondary)' }}>{ann.created_by_name}</strong></span>
+                    <span>{new Date(ann.created_at).toLocaleDateString('en-IN', { dateStyle: 'medium' })} at {new Date(ann.created_at).toLocaleTimeString('en-IN', { timeStyle: 'short' })}</span>
                   </div>
                 </div>
               </div>
@@ -4094,13 +4177,13 @@ export default function App() {
                     onChange={(e) => setViewedEmployeeId(e.target.value)}
                     style={{ padding: '6px 12px', fontSize: '13px', minWidth: '200px', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--glass-border)', color: 'var(--text-primary)' }}
                   >
-                    <option value={currentUser.id} style={{ background: '#1c1f26' }}>Myself ({currentUser.full_name})</option>
+                    <option value={currentUser.id} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>Myself ({currentUser.full_name})</option>
                     {employees
                       .filter(emp => currentUser.role === 'Root Admin' || (emp.reporting_officers && emp.reporting_officers.includes(currentUser.full_name)))
                       .filter(emp => emp.id !== currentUser.id)
                       .filter(emp => currentUser.role === 'Root Admin' || !emp.is_hidden)
                       .map(emp => (
-                        <option key={emp.id} value={emp.id} style={{ background: '#1c1f26' }}>
+                        <option key={emp.id} value={emp.id} style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
                           {emp.full_name} ({emp.designation})
                         </option>
                       ))
@@ -4898,9 +4981,19 @@ export default function App() {
 
           {/* Attribution Footer */}
           <div style={{ textAlign: 'center', fontSize: '10px', color: 'var(--text-muted)', marginTop: '25px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '15px' }}>
-            Designed & Vibe Coded by <br />
-            <span style={{ color: 'var(--text-secondary)', fontWeight: '600' }}>Sujith B Kallara, ScO</span> <br />
-            <a href="mailto:sujithbkallara@gmail.com" style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}>sujithbkallara@gmail.com</a>
+            Conceived, Designed & Developed by <br />
+            <span style={{ color: 'var(--text-secondary)', fontWeight: '600', display: 'block', margin: '3px 0 6px 0' }}>Sujith B Kallara, ScO</span>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '14px', marginTop: '6px' }}>
+              <a href="mailto:sujithbkallara@gmail.com" title="Email" style={{ color: 'var(--text-muted)', transition: 'color 0.2s', display: 'inline-flex', alignItems: 'center' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-blue)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                <Mail size={13} />
+              </a>
+              <a href="tel:+919995856425" title="Call" style={{ color: 'var(--text-muted)', transition: 'color 0.2s', display: 'inline-flex', alignItems: 'center' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-emerald)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                <Phone size={13} />
+              </a>
+              <a href="https://wa.me/919995856425" target="_blank" rel="noopener noreferrer" title="WhatsApp" style={{ color: 'var(--text-muted)', transition: 'color 0.2s', display: 'inline-flex', alignItems: 'center' }} onMouseEnter={e => e.currentTarget.style.color = '#25D366'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                <WhatsAppIcon size={12} />
+              </a>
+            </div>
           </div>
 
           {/* Subtle Switcher Toggle Settings Icon */}
@@ -5078,9 +5171,19 @@ export default function App() {
 
           {/* Credits Footer */}
           <div style={{ textAlign: 'center', fontSize: '10px', color: 'var(--text-muted)', marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
-            Designed & Vibe Coded by <br />
-            <span style={{ color: 'var(--text-secondary)', fontWeight: '600' }}>Sujith B Kallara, ScO</span> <br />
-            <a href="mailto:sujithbkallara@gmail.com" style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}>sujithbkallara@gmail.com</a>
+            Conceived, Designed & Developed by <br />
+            <span style={{ color: 'var(--text-secondary)', fontWeight: '600', display: 'block', margin: '3px 0 6px 0' }}>Sujith B Kallara, ScO</span>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '14px', marginTop: '6px' }}>
+              <a href="mailto:sujithbkallara@gmail.com" title="Email" style={{ color: 'var(--text-muted)', transition: 'color 0.2s', display: 'inline-flex', alignItems: 'center' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-blue)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                <Mail size={13} />
+              </a>
+              <a href="tel:+919995856425" title="Call" style={{ color: 'var(--text-muted)', transition: 'color 0.2s', display: 'inline-flex', alignItems: 'center' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-emerald)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                <Phone size={13} />
+              </a>
+              <a href="https://wa.me/919995856425" target="_blank" rel="noopener noreferrer" title="WhatsApp" style={{ color: 'var(--text-muted)', transition: 'color 0.2s', display: 'inline-flex', alignItems: 'center' }} onMouseEnter={e => e.currentTarget.style.color = '#25D366'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                <WhatsAppIcon size={12} />
+              </a>
+            </div>
           </div>
         </div>
       </aside>
@@ -5174,14 +5277,6 @@ export default function App() {
               <div className="form-group" style={{ margin: 0 }}>
                 <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>അവധിയുടെ കാരണം (Reason)</label>
                 <textarea className="form-control" rows="3" value={leaveFormReason} onChange={e => setLeaveFormReason(e.target.value)} placeholder="അവധിക്കുള്ള കാരണം ഇവിടെ എഴുതുക..." required></textarea>
-              </div>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>അവധിക്കാലത്തെ വിലാസം (Address during leave)</label>
-                <textarea className="form-control" rows="2" value={leaveFormAddress} onChange={e => setLeaveFormAddress(e.target.value)} placeholder="വിലാസം ഇവിടെ എഴുതുക..."></textarea>
-              </div>
-              <div className="form-group" style={{ margin: 0 }}>
-                <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>ബന്ധപ്പെടേണ്ട നമ്പർ (Phone)</label>
-                <input type="text" className="form-control" value={leaveFormPhone} onChange={e => setLeaveFormPhone(e.target.value)} />
               </div>
               <div className="form-group" style={{ margin: 0 }}>
                 <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>തീയതി (Application Date)</label>
