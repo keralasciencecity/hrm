@@ -4,7 +4,7 @@ import {
   Lock, Settings, FileText, Plus, Trash, Check, X, 
   Gift, AlertCircle, DollarSign, IndianRupee, CheckCircle, Eye, 
   LogOut, Shield, ChevronLeft, ChevronRight, UserPlus, 
-  Edit3, RotateCcw, Search, Cake, HardDrive, Key, CheckSquare, AlertTriangle, Menu
+  Edit3, RotateCcw, Search, Cake, HardDrive, Key, CheckSquare, AlertTriangle, Menu, Sun, Moon, Bell
 } from 'lucide-react';
 import { supabase, resolveIdentifierToEmail } from './supabase';
 import { jsPDF } from 'jspdf';
@@ -225,9 +225,44 @@ function renderDailyWageTableRows(dayRows) {
 }
 
 export default function App() {
+  // Light/Dark Theme State
+  const [theme, setTheme] = useState(() => localStorage.getItem('ksc_theme') || 'dark');
+
+  // Login Screen Switcher Lock
+  const [showLoginSettings, setShowLoginSettings] = useState(false);
+
+  // Broadcast Announcements
+  const [announcements, setAnnouncements] = useState([]);
+  const [newAnnouncementTitle, setNewAnnouncementTitle] = useState('');
+  const [newAnnouncementMessage, setNewAnnouncementMessage] = useState('');
+  const [newAnnouncementTarget, setNewAnnouncementTarget] = useState('All'); // 'All' or 'Specific'
+  const [newAnnouncementSelectedUsers, setNewAnnouncementSelectedUsers] = useState([]);
+
+  // Malayalam Leave Request Form Modal States
+  const [showLeaveFormModal, setShowLeaveFormModal] = useState(false);
+  const [leaveFormEmp, setLeaveFormEmp] = useState(null);
+  const [leaveFormType, setLeaveFormType] = useState('Casual Leave (CL)');
+  const [leaveFormFrom, setLeaveFormFrom] = useState('');
+  const [leaveFormTo, setLeaveFormTo] = useState('');
+  const [leaveFormTotalDays, setLeaveFormTotalDays] = useState('1');
+  const [leaveFormReason, setLeaveFormReason] = useState('');
+  const [leaveFormAddress, setLeaveFormAddress] = useState('');
+  const [leaveFormPhone, setLeaveFormPhone] = useState('');
+  const [leaveFormAppDate, setLeaveFormAppDate] = useState(() => new Date().toISOString().split('T')[0]);
+
   // Database Mode State
   const [isDemoMode, setIsDemoMode] = useState(true);
   const [isSupabaseConfigured, setIsSupabaseConfigured] = useState(false);
+
+  // Effect to toggle light/dark theme class on document element
+  useEffect(() => {
+    if (theme === 'light') {
+      document.documentElement.classList.add('light-theme');
+    } else {
+      document.documentElement.classList.remove('light-theme');
+    }
+    localStorage.setItem('ksc_theme', theme);
+  }, [theme]);
 
   // App & Authentication States
   const [currentUser, setCurrentUser] = useState(null);
@@ -402,6 +437,7 @@ export default function App() {
   };
 
   const checkAndCreditHolidayCOff = async (employeeId, dateStr, status = 'P') => {
+    if (dateStr < '2026-04-01') return; // Enforce April 2026 cutoff for C-Off credits
     const emp = employees.find(e => e.id === employeeId);
     if (!emp || !emp.co_eligible) return;
 
@@ -485,6 +521,7 @@ export default function App() {
   };
 
   const checkAndCreditSundayMondayCOff = async (employeeId, dateStr, tempAttendanceList = null) => {
+    if (dateStr < '2026-04-01') return; // Enforce April 2026 cutoff for C-Off credits
     const emp = employees.find(e => e.id === employeeId);
     if (!emp || !emp.co_eligible) return;
 
@@ -614,29 +651,34 @@ export default function App() {
 
     let anyUpdated = false;
 
-    // Purge any C-Off credits before the joining date
-    if (emp.joining_date && emp.joining_date.trim()) {
-      if (isDemoMode) {
-        const coffList = JSON.parse(localStorage.getItem('ksc_c_off') || '[]');
-        const filteredList = coffList.filter(c => !(c.employee_id === employeeId && c.date_worked < emp.joining_date));
-        if (coffList.length !== filteredList.length) {
-          localStorage.setItem('ksc_c_off', JSON.stringify(filteredList));
-          anyUpdated = true;
-        }
-      } else {
-        try {
-          const { data, error } = await supabase
+    // Purge any C-Off credits before joining date OR before April 1, 2026
+    if (isDemoMode) {
+      const coffList = JSON.parse(localStorage.getItem('ksc_c_off') || '[]');
+      const filteredList = coffList.filter(c => !(c.employee_id === employeeId && (c.date_worked < '2026-04-01' || (emp.joining_date && c.date_worked < emp.joining_date))));
+      if (coffList.length !== filteredList.length) {
+        localStorage.setItem('ksc_c_off', JSON.stringify(filteredList));
+        anyUpdated = true;
+      }
+    } else {
+      try {
+        if (emp.joining_date && emp.joining_date.trim()) {
+          await supabase
             .from('c_off_credits')
             .delete()
             .eq('employee_id', employeeId)
-            .lt('date_worked', emp.joining_date)
-            .select();
-          if (!error && data && data.length > 0) {
-            anyUpdated = true;
-          }
-        } catch (err) {
-          console.error("Failed to delete pre-joining C-Off credits:", err);
+            .lt('date_worked', emp.joining_date);
         }
+        const { data, error } = await supabase
+          .from('c_off_credits')
+          .delete()
+          .eq('employee_id', employeeId)
+          .lt('date_worked', '2026-04-01')
+          .select();
+        if (!error && data && data.length > 0) {
+          anyUpdated = true;
+        }
+      } catch (err) {
+        console.error("Failed to delete pre-April 2026 C-Off credits:", err);
       }
     }
 
@@ -662,6 +704,7 @@ export default function App() {
 
     // 1. Check Sundays & Mondays
     for (const sundayStr of sundayDates) {
+      if (sundayStr < '2026-04-01') continue; // Enforce April 2026 cutoff
       if (emp.joining_date && sundayStr < emp.joining_date) continue;
 
       const parts = sundayStr.split('-');
@@ -793,6 +836,7 @@ export default function App() {
       };
       const dateStr = formatLocalDate(d);
       
+      if (dateStr < '2026-04-01') continue; // Enforce April 2026 cutoff for C-Off credits
       if (emp.joining_date && dateStr < emp.joining_date) continue;
 
       const isHol = holidays.some(h => h.date === dateStr) || isSecondSaturday(dateStr);
@@ -972,12 +1016,21 @@ export default function App() {
     setAttendance(JSON.parse(storedAttendance));
 
     // Get or Set COff Credits
+    // Get or Set COff Credits (Only April 2026 onwards)
     let storedCOff = localStorage.getItem('ksc_c_off');
     if (!storedCOff) {
       localStorage.setItem('ksc_c_off', JSON.stringify([]));
       storedCOff = JSON.stringify([]);
     }
-    setCOffCredits(JSON.parse(storedCOff));
+    setCOffCredits((JSON.parse(storedCOff) || []).filter(c => c.date_worked >= '2026-04-01'));
+
+    // Get or Set Announcements
+    let storedAnns = localStorage.getItem('ksc_announcements');
+    if (!storedAnns) {
+      localStorage.setItem('ksc_announcements', JSON.stringify([]));
+      storedAnns = JSON.stringify([]);
+    }
+    setAnnouncements(JSON.parse(storedAnns));
 
     // Get or Set Tour Records
     let storedTours = localStorage.getItem('ksc_tours');
@@ -1071,7 +1124,21 @@ export default function App() {
         .select('*')
         .order('date_worked', { ascending: false });
       if (coffErr) throw coffErr;
-      setCOffCredits(coffData || []);
+      setCOffCredits((coffData || []).filter(c => c.date_worked >= '2026-04-01'));
+
+      // Get Announcements
+      let announcementsData = [];
+      try {
+        const { data, error } = await supabase
+          .from('announcements')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (!error) announcementsData = data || [];
+        else console.warn("Announcements table might not exist in Supabase yet:", error.message);
+      } catch (e) {
+        console.warn("Failed to query announcements from Supabase:", e);
+      }
+      setAnnouncements(announcementsData);
 
       const { data: tourData, error: tourErr } = await supabase
         .from('tour_records')
@@ -2305,6 +2372,76 @@ export default function App() {
     }
   };
 
+  const handleCreateAnnouncement = async (e) => {
+    e.preventDefault();
+    if (!newAnnouncementTitle || !newAnnouncementMessage) return;
+
+    const payload = {
+      title: newAnnouncementTitle,
+      message: newAnnouncementMessage,
+      created_by_name: currentUser.full_name,
+      target_type: newAnnouncementTarget,
+      target_users: newAnnouncementTarget === 'Specific' ? newAnnouncementSelectedUsers : null
+    };
+
+    if (isDemoMode) {
+      const list = JSON.parse(localStorage.getItem('ksc_announcements') || '[]');
+      const newAnn = {
+        id: `ann-${Date.now()}`,
+        ...payload,
+        created_at: new Date().toISOString()
+      };
+      list.push(newAnn);
+      localStorage.setItem('ksc_announcements', JSON.stringify(list));
+      addDemoAuditLog('Announcement Broadcast', `Broadcast announcement: ${newAnnouncementTitle}`);
+      setNewAnnouncementTitle('');
+      setNewAnnouncementMessage('');
+      setNewAnnouncementSelectedUsers([]);
+      loadDemoData();
+    } else {
+      setLoading(true);
+      try {
+        const { error } = await supabase
+          .from('announcements')
+          .insert(payload);
+        if (error) throw error;
+        setNewAnnouncementTitle('');
+        setNewAnnouncementMessage('');
+        setNewAnnouncementSelectedUsers([]);
+        loadSupabaseData();
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleDeleteAnnouncement = async (annId) => {
+    if (!window.confirm("Are you sure you want to delete this announcement?")) return;
+
+    if (isDemoMode) {
+      const list = JSON.parse(localStorage.getItem('ksc_announcements') || '[]');
+      const filtered = list.filter(a => a.id !== annId);
+      localStorage.setItem('ksc_announcements', JSON.stringify(filtered));
+      loadDemoData();
+    } else {
+      setLoading(true);
+      try {
+        const { error } = await supabase
+          .from('announcements')
+          .delete()
+          .eq('id', annId);
+        if (error) throw error;
+        loadSupabaseData();
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   const handleToggleMonthLock = async (y, m, currentLockState) => {
     const actionLabel = currentLockState ? 'Unlock' : 'Lock';
     if (!window.confirm(`Are you sure you want to ${actionLabel} attendance for ${y}-${m}?`)) return;
@@ -2739,7 +2876,25 @@ export default function App() {
     const calculatedLeavesCount = summary.CL + summary.ML + summary.EL + summary.SL + (summary.FH * 0.5) + (summary.SH * 0.5);
     const calculatedPresentCount = summary.P + summary.OD + summary.TR + (summary.FH * 0.5) + (summary.SH * 0.5);
 
-    let lopCount = (summary.A || 0) + (summary.LOP || 0);
+    let lopCount = 0;
+    for (let day = 1; day <= numDays; day++) {
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const record = empAttRecords.find(a => a.date === dateStr);
+      const cellDate = new Date(year, month - 1, day);
+      const isHol = holidays.some(h => h.date === dateStr) || isSecondSaturday(dateStr) || cellDate.getDay() === 0;
+      
+      const statusShort = record ? record.status : '';
+      if (statusShort === 'LOP') {
+        lopCount += 1;
+      } else if (statusShort === 'A') {
+        if (targetEmp.employment_category === 'Permanent' && isHol) {
+          // Permanent employees do not get LOP on holidays/weekends
+        } else {
+          lopCount += 1;
+        }
+      }
+    }
+
     if (targetEmp.employment_category === 'Daily Wage') {
       const clLimitDW = isDemoMode ? (targetEmp.cl_limit ?? 3) : (leaveBalances[targetEmp.id]?.cl_limit ?? 3);
       const clTakenInMonth = summary.CL || 0;
@@ -2803,7 +2958,7 @@ export default function App() {
     const tMonth = today.getMonth() + 1;
     
     return employees
-      .filter(emp => !emp.is_archived && emp.dob)
+      .filter(emp => !emp.is_archived && !emp.is_hidden && emp.dob)
       .filter(emp => {
         const [y, m, d] = emp.dob.split('-');
         return parseInt(m) === tMonth;
@@ -2863,7 +3018,7 @@ export default function App() {
     if (isSecondSaturday(dateStr)) list.push("System Holiday (Second Saturday)");
 
     // Staff Birthdays on this date
-    employees.filter(e => !e.is_archived && e.dob).forEach(emp => {
+    employees.filter(e => !e.is_archived && !e.is_hidden && e.dob).forEach(emp => {
       const [ey, em, ed] = emp.dob.split('-');
       if (parseInt(em) === (d.getMonth() + 1) && parseInt(ed) === d.getDate()) {
         list.push(`🎂 Staff Birthday: ${emp.full_name}`);
@@ -3047,6 +3202,12 @@ export default function App() {
 
     const selectedDayEvents = compileDayEventsList(selectedDashDate);
 
+    const activeAnnouncements = announcements.filter(ann => {
+      if (ann.target_type === 'All') return true;
+      if (ann.target_users && ann.target_users.includes(currentUser.id)) return true;
+      return false;
+    });
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
         {/* Birthday Festive Banner */}
@@ -3074,6 +3235,34 @@ export default function App() {
                 Your emergency contact, address, or mobile details will reflect officially once verified by the Admin.
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Active Announcements Notice Board */}
+        {activeAnnouncements.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {activeAnnouncements.map(ann => (
+              <div key={ann.id} className="notification-banner info" style={{ borderRadius: 'var(--radius-md)', background: 'rgba(37, 99, 235, 0.08)', border: '1px solid rgba(37, 99, 235, 0.25)', display: 'flex', gap: '15px', alignItems: 'flex-start', padding: '15px' }}>
+                <Bell size={22} style={{ color: 'var(--accent-blue)', flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ flexGrow: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ fontSize: '15px', color: 'var(--text-primary)' }}>{ann.title}</strong>
+                    {currentUser.role === 'Root Admin' && (
+                      <button 
+                        onClick={() => handleDeleteAnnouncement(ann.id)} 
+                        style={{ background: 'none', border: 'none', color: 'var(--accent-rose)', cursor: 'pointer', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        <Trash size={12} /> Delete
+                      </button>
+                    )}
+                  </div>
+                  <p style={{ margin: '8px 0 0 0', fontSize: '13px', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{ann.message}</p>
+                  <div style={{ marginTop: '10px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                    Broadcasted by <strong>{ann.created_by_name}</strong> on {new Date(ann.created_at).toLocaleDateString('en-IN', { dateStyle: 'medium' })} at {new Date(ann.created_at).toLocaleTimeString('en-IN', { timeStyle: 'short' })}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -3114,6 +3303,95 @@ export default function App() {
         <div className="dashboard-layout">
           {/* Left Column */}
           <div className="dashboard-column">
+            {currentUser.role === 'Root Admin' && (
+              <div className="glass-card">
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-blue)', marginBottom: '15px' }}>
+                  <Bell size={20} /> Broadcast New Message 📢
+                </h3>
+                <form onSubmit={handleCreateAnnouncement} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>Message Title / Subject</label>
+                    <input 
+                      type="text" 
+                      className="form-control" 
+                      placeholder="e.g. Server Maintenance Notice" 
+                      value={newAnnouncementTitle} 
+                      onChange={e => setNewAnnouncementTitle(e.target.value)} 
+                      required 
+                    />
+                  </div>
+                  
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>Message Body</label>
+                    <textarea 
+                      className="form-control" 
+                      rows="4" 
+                      placeholder="Write your broadcast message details here..." 
+                      value={newAnnouncementMessage} 
+                      onChange={e => setNewAnnouncementMessage(e.target.value)} 
+                      required 
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>Target Audience</label>
+                    <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                        <input 
+                          type="radio" 
+                          name="announcementTarget" 
+                          checked={newAnnouncementTarget === 'All'} 
+                          onChange={() => setNewAnnouncementTarget('All')} 
+                        />
+                        All Staff
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+                        <input 
+                          type="radio" 
+                          name="announcementTarget" 
+                          checked={newAnnouncementTarget === 'Specific'} 
+                          onChange={() => setNewAnnouncementTarget('Specific')} 
+                        />
+                        Specific Staff
+                      </label>
+                    </div>
+                  </div>
+
+                  {newAnnouncementTarget === 'Specific' && (
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>Select Recipients</label>
+                      <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-sm)', padding: '10px', background: 'rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {employees
+                          .filter(emp => !emp.is_archived && emp.id !== currentUser.id)
+                          .map(emp => {
+                            const isChecked = newAnnouncementSelectedUsers.includes(emp.id);
+                            return (
+                              <label key={emp.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer', color: isChecked ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                                <input 
+                                  type="checkbox" 
+                                  checked={isChecked} 
+                                  onChange={e => {
+                                    if (e.target.checked) {
+                                      setNewAnnouncementSelectedUsers([...newAnnouncementSelectedUsers, emp.id]);
+                                    } else {
+                                      setNewAnnouncementSelectedUsers(newAnnouncementSelectedUsers.filter(id => id !== emp.id));
+                                    }
+                                  }}
+                                />
+                                {emp.full_name} ({emp.designation})
+                              </label>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+
+                  <button type="submit" className="btn btn-primary" style={{ height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Plus size={16} style={{ marginRight: '6px' }} /> Broadcast Message
+                  </button>
+                </form>
+              </div>
+            )}
             
             {breakAlerts.length > 0 && currentUser.role !== 'Employee' && (
               <div className="glass-card" style={{ borderColor: 'var(--accent-rose)', background: 'rgba(244, 63, 94, 0.08)' }}>
@@ -3363,7 +3641,7 @@ export default function App() {
             {/* Interactive Dashboard Mini-Calendar */}
             <div className="glass-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                <h3 style={{ fontSize: '16px' }}>KSC Holiday Calendar</h3>
+                <h3 style={{ fontSize: '16px' }}>Calendar</h3>
                 <div style={{ display: 'flex', gap: '6px' }}>
                   <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '11px' }} onClick={() => {
                     if (dashMonth === 1) { setDashMonth(12); setDashYear(dashYear - 1); }
@@ -4225,6 +4503,24 @@ export default function App() {
                     <button className="btn btn-secondary" style={{ padding: '8px 16px' }} onClick={() => printEmployeeAttendance(emp, reportYear, reportMonth)}>
                       <FileText size={16} /> Print Attendance Sheet
                     </button>
+                    <button 
+                      className="btn btn-secondary" 
+                      style={{ padding: '8px 16px', backgroundColor: 'var(--accent-purple)', borderColor: 'var(--accent-purple)', color: '#ffffff' }} 
+                      onClick={() => {
+                        setLeaveFormEmp(emp);
+                        setLeaveFormType('Casual Leave (CL)');
+                        setLeaveFormFrom('');
+                        setLeaveFormTo('');
+                        setLeaveFormTotalDays('1');
+                        setLeaveFormReason('');
+                        setLeaveFormAddress(emp.address || '');
+                        setLeaveFormPhone(emp.mobile_number || '');
+                        setLeaveFormAppDate(new Date().toISOString().split('T')[0]);
+                        setShowLeaveFormModal(true);
+                      }}
+                    >
+                      <Calendar size={16} /> Print Leave Form
+                    </button>
                   </div>
                 </div>
               );
@@ -4415,20 +4711,22 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--glass-border)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <HardDrive size={14} style={{ color: isDemoMode ? 'var(--accent-amber)' : 'var(--accent-emerald)' }} />
-              <div>
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Database Mode:</span>
-                <div style={{ fontSize: '12px', fontWeight: 'bold' }}>{isDemoMode ? 'Simulated Local Mode' : 'Supabase Production'}</div>
+          {showLoginSettings && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--glass-border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <HardDrive size={14} style={{ color: isDemoMode ? 'var(--accent-amber)' : 'var(--accent-emerald)' }} />
+                <div>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Database Mode:</span>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold' }}>{isDemoMode ? 'Simulated Local Mode' : 'Supabase Production'}</div>
+                </div>
               </div>
+              {isSupabaseConfigured && (
+                <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '10px', height: 'auto' }} onClick={() => setIsDemoMode(!isDemoMode)}>
+                  Use {isDemoMode ? 'Supabase' : 'Local Demo'}
+                </button>
+              )}
             </div>
-            {isSupabaseConfigured && (
-              <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '10px', height: 'auto' }} onClick={() => setIsDemoMode(!isDemoMode)}>
-                Use {isDemoMode ? 'Supabase' : 'Local Demo'}
-              </button>
-            )}
-          </div>
+          )}
 
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
             {loginError && (
@@ -4452,6 +4750,25 @@ export default function App() {
               {loading ? 'Authenticating...' : 'Sign In'}
             </button>
           </form>
+
+          {/* Attribution Footer */}
+          <div style={{ textAlign: 'center', fontSize: '10px', color: 'var(--text-muted)', marginTop: '25px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '15px' }}>
+            Designed & Vibe Coded by <br />
+            <span style={{ color: 'var(--text-secondary)', fontWeight: '600' }}>Sujith B Kallara, ScO</span> <br />
+            <a href="mailto:sujithbkallara@gmail.com" style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}>sujithbkallara@gmail.com</a>
+          </div>
+
+          {/* Subtle Switcher Toggle Settings Icon */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+            <button 
+              type="button" 
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', opacity: 0.3 }}
+              onClick={() => setShowLoginSettings(!showLoginSettings)}
+              title="Database Mode Settings"
+            >
+              <Settings size={13} />
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -4604,12 +4921,22 @@ export default function App() {
               </span>
             </div>
           </div>
+          <button className="sidebar-item-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />} {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+          </button>
           <button className="sidebar-item-btn" onClick={() => { setShowPasswordModal(true); setIsSidebarOpen(false); }}>
             <Key size={16} /> Change Password
           </button>
           <button className="btn btn-danger" style={{ width: '100%', marginTop: '10px' }} onClick={handleLogout}>
             <LogOut size={16} /> Logout
           </button>
+
+          {/* Credits Footer */}
+          <div style={{ textAlign: 'center', fontSize: '10px', color: 'var(--text-muted)', marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+            Designed & Vibe Coded by <br />
+            <span style={{ color: 'var(--text-secondary)', fontWeight: '600' }}>Sujith B Kallara, ScO</span> <br />
+            <a href="mailto:sujithbkallara@gmail.com" style={{ color: 'var(--accent-blue)', textDecoration: 'none' }}>sujithbkallara@gmail.com</a>
+          </div>
         </div>
       </aside>
 
@@ -4657,6 +4984,97 @@ export default function App() {
           MODALS & OVERLAY INTERACTIVE WIDGETS
           ========================================== */}
       
+      {/* Malayalam Leave Request Form Modal */}
+      {showLeaveFormModal && leaveFormEmp && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <h3>അവധി അപേക്ഷ ഫോറം (Leave Request Form)</h3>
+              <button className="modal-close-btn" onClick={() => setShowLeaveFormModal(false)}>✕</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>ജീവനക്കാരന്റെ പേര് (Name)</label>
+                <input type="text" className="form-control" value={leaveFormEmp.full_name} readOnly />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>തസ്തിക (Designation)</label>
+                <input type="text" className="form-control" value={leaveFormEmp.designation} readOnly />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>അവധിയുടെ സ്വഭാവം (Nature of Leave)</label>
+                <select className="form-control" value={leaveFormType} onChange={e => setLeaveFormType(e.target.value)}>
+                  <option value="Casual Leave (CL)">Casual Leave (CL)</option>
+                  <option value="Earned Leave (EL)">Earned Leave (EL)</option>
+                  <option value="Sick Leave (SL)">Sick Leave (SL)</option>
+                  <option value="Medical Leave (ML)">Medical Leave (ML)</option>
+                  <option value="Compensatory Off (CO)">Compensatory Off (CO)</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '15px' }}>
+                <div className="form-group" style={{ flex: 1, margin: 0 }}>
+                  <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>മുതൽ (From Date)</label>
+                  <input type="date" className="form-control" value={leaveFormFrom} onChange={e => setLeaveFormFrom(e.target.value)} required />
+                </div>
+                <div className="form-group" style={{ flex: 1, margin: 0 }}>
+                  <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>വരെ (To Date)</label>
+                  <input type="date" className="form-control" value={leaveFormTo} onChange={e => setLeaveFormTo(e.target.value)} required />
+                </div>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>അപേക്ഷിച്ച ദിവസങ്ങൾ (Total Days)</label>
+                <input type="number" className="form-control" value={leaveFormTotalDays} onChange={e => setLeaveFormTotalDays(e.target.value)} required />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>അവധിയുടെ കാരണം (Reason)</label>
+                <textarea className="form-control" rows="3" value={leaveFormReason} onChange={e => setLeaveFormReason(e.target.value)} placeholder="അവധിക്കുള്ള കാരണം ഇവിടെ എഴുതുക..." required></textarea>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>അവധിക്കാലത്തെ വിലാസം (Address during leave)</label>
+                <textarea className="form-control" rows="2" value={leaveFormAddress} onChange={e => setLeaveFormAddress(e.target.value)} placeholder="വിലാസം ഇവിടെ എഴുതുക..."></textarea>
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>ബന്ധപ്പെടേണ്ട നമ്പർ (Phone)</label>
+                <input type="text" className="form-control" value={leaveFormPhone} onChange={e => setLeaveFormPhone(e.target.value)} />
+              </div>
+              <div className="form-group" style={{ margin: 0 }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '5px' }}>തീയതി (Application Date)</label>
+                <input type="date" className="form-control" value={leaveFormAppDate} onChange={e => setLeaveFormAppDate(e.target.value)} />
+              </div>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                style={{ width: '100%', height: '40px', marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} 
+                onClick={() => {
+                  if (!leaveFormFrom || !leaveFormTo || !leaveFormTotalDays || !leaveFormReason) {
+                    alert("Please fill in all required fields (From Date, To Date, Total Days, and Reason).");
+                    return;
+                  }
+                  setPrintData({
+                    type: 'leave_request',
+                    employee: leaveFormEmp,
+                    form: {
+                      leaveFormType,
+                      leaveFormFrom,
+                      leaveFormTo,
+                      leaveFormTotalDays,
+                      leaveFormReason,
+                      leaveFormAddress,
+                      leaveFormPhone,
+                      leaveFormAppDate
+                    }
+                  });
+                  setShowLeaveFormModal(false);
+                }}
+              >
+                അപേക്ഷാ ഫോം പ്രിന്റ് ചെയ്യുക (Print Leave Form)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 1. Request Attendance/Leave Modal (Remarks not mandatory!) */}
       {showRequestModal && (
         <div className="modal-overlay">
@@ -5580,6 +5998,70 @@ export default function App() {
           </div>
         </div>
       ))}
+      {/* Malayalam Leave Request Form Print Component */}
+      {printData && printData.type === 'leave_request' && (
+        <div className="print-report-container leave-request-print">
+          <div className="title">സയൻസ് സിറ്റി കോട്ടയം</div>
+          
+          <div className="field-row" style={{ marginTop: '40px' }}>
+            പേര് : <span className="field-dots" style={{ minWidth: '80%' }}>{printData.employee.full_name}</span>
+          </div>
+          
+          <div className="field-row">
+            ഉദ്യോഗപ്പേര് : <span className="field-dots" style={{ minWidth: '70%' }}>{printData.employee.designation}</span>
+          </div>
+          
+          <div className="field-row">
+            അപേക്ഷിച്ച കാലയളവ് : <span className="field-dots" style={{ minWidth: '80px', textAlign: 'center' }}>{printData.form.leaveFormTotalDays}</span> (ദിവസങ്ങൾ) 
+            &nbsp; തിയതി മുതൽ <span className="field-dots" style={{ minWidth: '120px', textAlign: 'center' }}>{new Date(printData.form.leaveFormFrom).toLocaleDateString('en-IN')}</span> 
+            &nbsp; വരെ <span className="field-dots" style={{ minWidth: '120px', textAlign: 'center' }}>{new Date(printData.form.leaveFormTo).toLocaleDateString('en-IN')}</span>
+          </div>
+          
+          <div className="field-row">
+            അവധിയുടെ സ്വഭാവം : <span className="field-dots" style={{ minWidth: '70%' }}>{printData.form.leaveFormType}</span>
+          </div>
+          
+          <div className="field-row">
+            അവധിയുടെ കാരണം : <span className="field-dots" style={{ minWidth: '70%' }}>{printData.form.leaveFormReason}</span>
+          </div>
+
+          {printData.form.leaveFormAddress && (
+            <div className="field-row">
+              അവധിക്കാലത്തെ വിലാസം : <span className="field-dots" style={{ minWidth: '70%' }}>{printData.form.leaveFormAddress}</span>
+            </div>
+          )}
+
+          {printData.form.leaveFormPhone && (
+            <div className="field-row">
+              ബന്ധപ്പെടേണ്ട ഫോൺ നമ്പർ : <span className="field-dots" style={{ minWidth: '70%' }}>{printData.form.leaveFormPhone}</span>
+            </div>
+          )}
+          
+          <div className="field-row" style={{ marginTop: '30px' }}>
+            തിയതി : <span className="field-dots" style={{ minWidth: '150px' }}>{new Date(printData.form.leaveFormAppDate).toLocaleDateString('en-IN')}</span>
+          </div>
+
+          <div style={{ marginTop: '50px', fontWeight: 'bold', fontSize: '15pt' }}>ശുപാർശ</div>
+          
+          <div className="signatures-row">
+            <div className="signature-col">
+              മേലധികാരിയുടെ അഭിപ്രായവും <br />
+              തിയതിയും / ഒപ്പും
+              <div style={{ marginTop: '60px', borderBottom: '1px solid #000000', width: '220px' }}></div>
+            </div>
+            
+            <div className="signature-col right" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <div style={{ textAlign: 'center' }}>
+                അപേക്ഷകന്റെ ഒപ്പ്
+                <div style={{ marginTop: '50px', width: '180px' }}></div>
+              </div>
+              <div style={{ marginTop: '30px', textAlign: 'right', fontWeight: 'bold' }}>
+                അനുവദിച്ചു / നിരസിച്ചു
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

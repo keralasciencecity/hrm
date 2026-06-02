@@ -528,7 +528,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .calendar-days-header {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   text-align: center;
   font-family: var(--font-display);
   font-weight: 600;
@@ -542,7 +542,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -1370,4 +1370,161 @@ h1, h2, h3, h4, h5, h6 {
     margin-bottom: 5px;
   }
 }
+
+/* ==========================================
+   PREMIUM CUSTOM ADDITIONS & THEME TUNING
+   ========================================== */
+
+/* 1. Login Card Entry Animation */
+@keyframes card-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(15px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.login-card {
+  animation: card-fade-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 2. Light Theme System Variables Override */
+.light-theme {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f5f9;
+  
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(15, 23, 42, 0.08);
+  --glass-glow: rgba(37, 99, 235, 0.05);
+  --glass-hover: rgba(15, 23, 42, 0.02);
+}
+
+/* Light Theme Element Custom Styling */
+.light-theme body::before {
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.06) 0%, rgba(0, 0, 0, 0) 70%) !important;
+}
+
+.light-theme body::after {
+  background: radial-gradient(circle, rgba(13, 148, 136, 0.04) 0%, rgba(0, 0, 0, 0) 70%) !important;
+}
+
+.light-theme .form-control {
+  background: rgba(15, 23, 42, 0.02) !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  color: #0f172a !important;
+}
+
+.light-theme .form-control:focus {
+  background: #ffffff !important;
+  border-color: var(--accent-blue) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+}
+
+.light-theme .btn-secondary {
+  background: rgba(15, 23, 42, 0.05) !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  color: #334155 !important;
+}
+
+.light-theme .btn-secondary:hover {
+  background: rgba(15, 23, 42, 0.1) !important;
+  color: #0f172a !important;
+}
+
+.light-theme .calendar-cell {
+  background: rgba(15, 23, 42, 0.02) !important;
+}
+
+.light-theme .calendar-cell:hover {
+  background: rgba(15, 23, 42, 0.05) !important;
+}
+
+.light-theme .sidebar {
+  background: #ffffff !important;
+  border-right: 1px solid rgba(15, 23, 42, 0.08) !important;
+}
+
+.light-theme .sidebar-menu li button {
+  color: #475569 !important;
+}
+
+.light-theme .sidebar-menu li button:hover {
+  background: rgba(15, 23, 42, 0.04) !important;
+  color: #0f172a !important;
+}
+
+.light-theme .sidebar-menu li button.active {
+  background: rgba(37, 99, 235, 0.08) !important;
+  color: var(--accent-blue) !important;
+}
+
+.light-theme .sidebar-user {
+  background: rgba(15, 23, 42, 0.02) !important;
+  border-top: 1px solid rgba(15, 23, 42, 0.06) !important;
+}
+
+.light-theme .sidebar-user-avatar {
+  background: rgba(37, 99, 235, 0.1) !important;
+  color: var(--accent-blue) !important;
+}
+
+/* 3. Malayalam Leave Request Print Form Styling */
+.leave-request-print {
+  font-family: 'Times New Roman', 'Gargi', 'Kartika', 'Arial', serif !important;
+  color: #000000 !important;
+  background: #ffffff !important;
+  padding: 40px;
+  line-height: 2.2 !important;
+  font-size: 14pt !important;
+}
+
+.leave-request-print .title {
+  text-align: center;
+  font-size: 18pt !important;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.leave-request-print .subtitle {
+  text-align: center;
+  font-size: 16pt !important;
+  font-weight: bold;
+  margin-bottom: 40px;
+  text-decoration: underline;
+}
+
+.leave-request-print .field-row {
+  margin-bottom: 22px;
+}
+
+.leave-request-print .field-dots {
+  border-bottom: 1px dotted #000000;
+  display: inline-block;
+  padding-left: 10px;
+}
+
+.leave-request-print .signatures-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  margin-top: 60px;
+  font-size: 13pt !important;
+}
+
+.leave-request-print .signature-col {
+  width: 45%;
+  text-align: left;
+}
+
+.leave-request-print .signature-col.right {
+  text-align: right;
+}
+
 

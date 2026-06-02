@@ -33,6 +33,11 @@ CREATE TABLE IF NOT EXISTS public.profile_update_requests (
 -- Enable RLS
 ALTER TABLE public.profile_update_requests ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if any to prevent duplicate errors
+DROP POLICY IF EXISTS "Employees can view own profile requests" ON public.profile_update_requests;
+DROP POLICY IF EXISTS "Employees can submit profile update requests" ON public.profile_update_requests;
+DROP POLICY IF EXISTS "Admins can update profile requests (approvals)" ON public.profile_update_requests;
+
 -- Create RLS Policies
 CREATE POLICY "Employees can view own profile requests"
     ON public.profile_update_requests FOR SELECT
@@ -135,3 +140,35 @@ ADD COLUMN IF NOT EXISTS sh_eligible BOOLEAN DEFAULT true,
 ADD COLUMN IF NOT EXISTS a_eligible BOOLEAN DEFAULT true,
 ADD COLUMN IF NOT EXISTS p_eligible BOOLEAN DEFAULT true,
 ADD COLUMN IF NOT EXISTS co_limit INT DEFAULT 15;
+
+-- 4. CREATE ANNOUNCEMENTS / BROADCAST TABLE
+CREATE TABLE IF NOT EXISTS public.announcements (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    created_by_name TEXT NOT NULL,
+    target_type TEXT NOT NULL, -- 'All' or 'Specific'
+    target_users UUID[], -- Array of target employee IDs
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE public.announcements ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if any
+DROP POLICY IF EXISTS "Anyone can view announcements" ON public.announcements;
+DROP POLICY IF EXISTS "Root can insert announcements" ON public.announcements;
+DROP POLICY IF EXISTS "Root can delete announcements" ON public.announcements;
+
+-- Create Policies
+CREATE POLICY "Anyone can view announcements" 
+    ON public.announcements FOR SELECT 
+    USING (true);
+
+CREATE POLICY "Root can insert announcements" 
+    ON public.announcements FOR INSERT 
+    WITH CHECK (public.is_admin_or_root());
+
+CREATE POLICY "Root can delete announcements" 
+    ON public.announcements FOR DELETE 
+    USING (public.is_admin_or_root());
