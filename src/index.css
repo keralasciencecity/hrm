@@ -1237,14 +1237,18 @@ h1, h2, h3, h4, h5, h6 {
     display: none !important;
   }
 
-  /* Expand print report layout to occupy the full page cleanly */
+/* Expand print report layout to occupy the full page cleanly */
+  .print-report-container,
+  .print-report-container * {
+    font-family: 'Times New Roman', Times, serif !important;
+  }
+
   .print-report-container {
     display: block !important;
     width: 100% !important;
     background: #ffffff !important;
     color: #000000 !important;
-    font-family: Arial, sans-serif !important;
-    padding: 20px !important;
+    padding: 15px 20px !important;
     margin: 0 !important;
     box-sizing: border-box !important;
     -webkit-print-color-adjust: exact !important;
@@ -1262,59 +1266,68 @@ h1, h2, h3, h4, h5, h6 {
   /* Styled Print Headers */
   .print-report-container .header {
     text-align: center;
-    margin-bottom: 25px;
+    margin-bottom: 15px !important;
   }
 
   .print-report-container .header h1 {
     margin: 0;
-    font-size: 24px;
-    letter-spacing: 1px;
+    font-size: 22px !important;
+    letter-spacing: 0.5px;
     font-weight: bold;
     color: #000000;
   }
 
   .print-report-container .header h2 {
-    margin: 5px 0 0 0;
-    font-size: 15px;
-    color: #374151;
+    margin: 4px 0 0 0;
+    font-size: 16px !important;
+    font-weight: bold;
+    color: #000000;
+  }
+
+  .print-report-container .header h3 {
+    margin: 6px 0 0 0;
+    font-size: 14px !important;
+    font-weight: bold;
+    color: #000000;
   }
 
   .print-report-container .header p {
-    margin: 5px 0 0 0;
-    font-size: 11px;
-    color: #4b5563;
+    margin: 4px 0 0 0;
+    font-size: 14px !important;
+    font-weight: bold;
+    color: #000000;
   }
 
   .print-report-container .divider {
     border-bottom: 2px dashed #000000;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
   }
 
   /* Grid details formatting */
   .print-report-container .info-grid {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
-    gap: 12px;
-    margin-bottom: 25px;
+    gap: 8px;
+    margin-bottom: 15px;
     font-size: 13px;
   }
 
   .print-report-container .info-item {
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
 
   /* Clean print grid tables */
   .print-report-container table {
     width: 100% !important;
     border-collapse: collapse !important;
-    margin-bottom: 25px;
+    margin-bottom: 15px !important;
     font-size: 11px !important;
   }
 
   .print-report-container th, 
   .print-report-container td {
-    border: 1px solid #9ca3af !important;
-    padding: 6px 10px !important;
+    border: 1px solid #000000 !important;
+    padding: 4px 6px !important;
     text-align: left !important;
     color: #000000 !important;
   }
@@ -1326,24 +1339,24 @@ h1, h2, h3, h4, h5, h6 {
 
   /* Summaries sections */
   .print-report-container .summary-section {
-    margin-top: 15px;
+    margin-top: 10px;
     font-size: 12px;
-    border-top: 1px solid #9ca3af;
-    padding-top: 12px;
+    border-top: 1px solid #000000;
+    padding-top: 8px;
   }
 
   .print-report-container .summary-grid {
     display: grid !important;
     grid-template-columns: 1fr 1fr !important;
     gap: 15px;
-    margin-bottom: 35px;
+    margin-bottom: 20px;
   }
 
   /* Signature fields */
   .print-report-container .signatures {
     display: flex !important;
     justify-content: space-between !important;
-    margin-top: 50px;
+    margin-top: 35px;
     font-size: 12px;
   }
 

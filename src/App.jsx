@@ -115,6 +115,16 @@ const INITIAL_EMPLOYEES = [
   }
 ];
 
+// Date formatter to convert yyyy-mm-dd to dd-mm-yyyy
+function formatDateDMY(dateStr) {
+  if (!dateStr) return 'N/A';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return dateStr;
+}
+
 // Indian English number to words converter
 function convertNumberToWords(num) {
   const a = [
@@ -2688,6 +2698,11 @@ export default function App() {
     const el_balance = Math.max(0, elLimit - elTaken);
     const sl_balance = Math.max(0, slLimit - slTaken);
 
+    const cl_eligible = isDemoMode ? (targetEmp.cl_eligible ?? true) : (leaveBalances[targetEmp.id]?.cl_eligible ?? true);
+    const ml_eligible = isDemoMode ? (targetEmp.ml_eligible ?? true) : (leaveBalances[targetEmp.id]?.ml_eligible ?? true);
+    const el_eligible = isDemoMode ? (targetEmp.el_eligible ?? true) : (leaveBalances[targetEmp.id]?.el_eligible ?? true);
+    const sl_eligible = isDemoMode ? (targetEmp.sl_eligible ?? true) : (leaveBalances[targetEmp.id]?.sl_eligible ?? true);
+
     const calculatedLeavesCount = summary.CL + summary.ML + summary.EL + summary.SL + (summary.FH * 0.5) + (summary.SH * 0.5);
     const calculatedPresentCount = summary.P + summary.OD + summary.TR + (summary.FH * 0.5) + (summary.SH * 0.5);
 
@@ -2705,7 +2720,11 @@ export default function App() {
       cl_balance,
       el_balance,
       sl_balance,
-      ml_balance
+      ml_balance,
+      cl_eligible,
+      el_eligible,
+      sl_eligible,
+      ml_eligible
     });
   };
 
@@ -4155,15 +4174,16 @@ export default function App() {
                     <strong>{emp.full_name}</strong> ({emp.employee_number})
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{emp.designation} | {emp.employment_category}</div>
                   </div>
-                  {isDailyWage ? (
-                    <button className="btn btn-success" style={{ padding: '8px 16px' }} onClick={() => printDailyWageReportSingle(emp, reportYear, reportMonth)}>
-                      <FileText size={16} /> Print Salary Sheet
-                    </button>
-                  ) : (
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    {isDailyWage && (
+                      <button className="btn btn-success" style={{ padding: '8px 16px' }} onClick={() => printDailyWageReportSingle(emp, reportYear, reportMonth)}>
+                        <FileText size={16} /> Print Salary Sheet
+                      </button>
+                    )}
                     <button className="btn btn-secondary" style={{ padding: '8px 16px' }} onClick={() => printEmployeeAttendance(emp, reportYear, reportMonth)}>
                       <FileText size={16} /> Print Attendance Sheet
                     </button>
-                  )}
+                  </div>
                 </div>
               );
             })}
@@ -5214,76 +5234,111 @@ export default function App() {
       )}
       </div>
 
-      {/* 7. Premium, Native Print Layout Gated Grid (Bypasses popup blockers completely!) */}
-      {printData && printData.type === 'attendance' && (
+       {printData && printData.type === 'attendance' && (
         <div className="print-report-container">
           <div className="header" style={{ textAlign: 'center', marginBottom: '15px' }}>
-            <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0 }}>KERALA STATE SCIENCE AND TECHNOLOGY MUSEUM</h1>
-            <h2 style={{ fontSize: '14px', margin: '2px 0 0 0', fontWeight: 'bold' }}>KERALA SCIENCE CITY</h2>
-            <h3 style={{ fontSize: '13px', margin: '4px 0 0 0', textDecoration: 'underline' }}>Monthly Employee Attendance Report</h3>
-            <p style={{ fontSize: '12px', margin: '4px 0 0 0', fontWeight: 'bold' }}>
+            <h1 style={{ fontSize: '22px', fontWeight: 'bold', margin: 0 }}>KERALA STATE SCIENCE AND TECHNOLOGY MUSEUM</h1>
+            <h2 style={{ fontSize: '18px', margin: '4px 0 0 0', fontWeight: 'bold' }}>KERALA SCIENCE CITY</h2>
+            <h3 style={{ fontSize: '16px', margin: '6px 0 0 0', textDecoration: 'underline', fontWeight: 'bold' }}>Monthly Employee Attendance Report</h3>
+            <p style={{ fontSize: '16px', margin: '6px 0 0 0', fontWeight: 'bold' }}>
               {new Date(printData.year, printData.month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
             </p>
           </div>
           <div className="divider"></div>
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px', fontSize: '12px' }}>
-            <div><strong>Employee Name:</strong> {printData.targetEmp.full_name}</div>
-            <div><strong>Employee Number:</strong> {printData.targetEmp.employee_number}</div>
-            <div><strong>Employment Type:</strong> {printData.targetEmp.employment_category}</div>
-            <div><strong>Designation:</strong> {printData.targetEmp.designation}</div>
-            <div><strong>Date of Joining:</strong> {printData.targetEmp.joining_date || 'N/A'}</div>
+          <div className="daily-wage-fields" style={{ marginBottom: '15px', fontSize: '12px' }}>
+            <div style={{ display: 'flex', marginBottom: '4px' }}>
+              <span style={{ width: '220px', fontWeight: 'bold' }}>Employee Name</span>
+              <span style={{ width: '20px', textAlign: 'center' }}>:</span>
+              <span style={{ flexGrow: 1 }}>{printData.targetEmp.full_name}</span>
+            </div>
+            <div style={{ display: 'flex', marginBottom: '4px' }}>
+              <span style={{ width: '220px', fontWeight: 'bold' }}>Employee Number</span>
+              <span style={{ width: '20px', textAlign: 'center' }}>:</span>
+              <span style={{ flexGrow: 1 }}>{printData.targetEmp.employee_number}</span>
+            </div>
+            <div style={{ display: 'flex', marginBottom: '4px' }}>
+              <span style={{ width: '220px', fontWeight: 'bold' }}>Employment Type</span>
+              <span style={{ width: '20px', textAlign: 'center' }}>:</span>
+              <span style={{ flexGrow: 1 }}>{printData.targetEmp.employment_category}</span>
+            </div>
+            <div style={{ display: 'flex', marginBottom: '4px' }}>
+              <span style={{ width: '220px', fontWeight: 'bold' }}>Designation</span>
+              <span style={{ width: '20px', textAlign: 'center' }}>:</span>
+              <span style={{ flexGrow: 1 }}>{printData.targetEmp.designation}</span>
+            </div>
+            <div style={{ display: 'flex', marginBottom: '4px' }}>
+              <span style={{ width: '220px', fontWeight: 'bold' }}>Date of Joining</span>
+              <span style={{ width: '20px', textAlign: 'center' }}>:</span>
+              <span style={{ flexGrow: 1 }}>{formatDateDMY(printData.targetEmp.joining_date)}</span>
+            </div>
           </div>
 
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '15px' }}>
+          <table className="daily-wage-print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '15px' }}>
             <thead>
               <tr>
-                <th style={{ width: '10%', textAlign: 'center', border: '1px solid #000000', padding: '4px' }}>Day</th>
-                <th style={{ width: '15%', textAlign: 'center', border: '1px solid #000000', padding: '4px' }}>Weekday</th>
-                <th style={{ width: '20%', textAlign: 'center', border: '1px solid #000000', padding: '4px' }}>F.N</th>
-                <th style={{ width: '20%', textAlign: 'center', border: '1px solid #000000', padding: '4px' }}>A.N</th>
-                <th style={{ width: '35%', border: '1px solid #000000', padding: '4px' }}>Remarks</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
               </tr>
             </thead>
             <tbody>
-              {printData.rows.map(r => (
-                <tr key={r.day}>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{r.day}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{r.weekday}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px', fontWeight: r.fnStatus === 'P' ? 'bold' : 'normal' }}>{r.fnStatus}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px', fontWeight: r.anStatus === 'P' ? 'bold' : 'normal' }}>{r.anStatus}</td>
-                  <td style={{ border: '1px solid #000000', padding: '3px' }}>{r.remarks}</td>
+              {renderDailyWageTableRows(printData.rows).map((row, idx) => (
+                <tr key={idx}>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d1}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn1}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an1}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d2}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn2}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an2}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d3}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn3}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an3}</td>
                 </tr>
               ))}
             </tbody>
           </table>
 
           <div className="summary-section" style={{ borderTop: '1px solid #000000', paddingTop: '10px', fontSize: '11px' }}>
-            <strong style={{ display: 'block', fontSize: '12px', marginBottom: '6px' }}>Tally Summary</strong>
+            <strong style={{ display: 'block', fontSize: '12px', marginBottom: '6px' }}>Summary</strong>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
               <div>
                 <div>Total Leaves Taken: <strong>{printData.calculatedLeavesCount}</strong></div>
                 <div>Loss of Pays (LOP): <strong>{printData.lopCount}</strong></div>
               </div>
               <div>
-                <div>Remaining Casual Leave: <strong>{printData.cl_balance}</strong></div>
-                <div>Remaining Earned Leave: <strong>{printData.el_balance}</strong></div>
-                <div>Remaining Sick Leave: <strong>{printData.sl_balance}</strong></div>
-                {printData.targetEmp.gender === 'Female' && (
+                {printData.cl_eligible && (
+                  <div>Remaining Casual Leave: <strong>{printData.cl_balance}</strong></div>
+                )}
+                {printData.el_eligible && (
+                  <div>Remaining Earned Leave: <strong>{printData.el_balance}</strong></div>
+                )}
+                {printData.sl_eligible && (
+                  <div>Remaining Sick Leave: <strong>{printData.sl_balance}</strong></div>
+                )}
+                {printData.ml_eligible && printData.targetEmp.gender === 'Female' && (
                   <div>Remaining Maternity Leave: <strong>{printData.ml_balance}</strong></div>
                 )}
               </div>
             </div>
           </div>
 
-          <div className="signatures" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px', fontSize: '12px' }}>
-            <div className="signature-box" style={{ width: '200px', textAlign: 'center' }}>
-              <div className="signature-line" style={{ borderTop: '1px solid #000000', marginBottom: '5px' }}></div>
-              Reporting Officer
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '35px', fontSize: '12px' }}>
+            <div style={{ width: '200px', textAlign: 'center' }}>
+              <strong>Verified by</strong>
+              <div style={{ minHeight: '55px' }}></div>
+              <div style={{ fontSize: '11px', fontWeight: 'bold' }}>Name & Designation</div>
             </div>
-            <div className="signature-box" style={{ width: '200px', textAlign: 'center' }}>
-              <div className="signature-line" style={{ borderTop: '1px solid #000000', marginBottom: '5px' }}></div>
-              Administrative Officer
+            <div style={{ width: '200px', textAlign: 'center' }}>
+              <strong>Prepared</strong>
+              <div style={{ minHeight: '55px' }}></div>
+              <strong>ASSISTANT DIRECTOR</strong>
             </div>
           </div>
         </div>
@@ -5378,17 +5433,16 @@ export default function App() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '30px', fontSize: '12px' }}>
-            <div style={{ width: '200px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '35px', fontSize: '12px' }}>
+            <div style={{ width: '200px', textAlign: 'center' }}>
               <strong>Verified by</strong>
-              <div style={{ marginTop: '15px', fontSize: '10px', color: '#4b5563' }}>Name & designation</div>
+              <div style={{ minHeight: '55px' }}></div>
+              <div style={{ fontSize: '11px', fontWeight: 'bold' }}>Name & Designation</div>
             </div>
-            <div style={{ width: '150px', textAlign: 'center' }}>
+            <div style={{ width: '200px', textAlign: 'center' }}>
               <strong>Prepared</strong>
-            </div>
-            <div style={{ width: '250px', textAlign: 'right' }}>
-              <div style={{ minHeight: '30px' }}></div>
-              <strong>for ASSISTANT DIRECTOR</strong>
+              <div style={{ minHeight: '55px' }}></div>
+              <strong>ASSISTANT DIRECTOR</strong>
             </div>
           </div>
         </div>
@@ -5483,17 +5537,16 @@ export default function App() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '30px', fontSize: '12px' }}>
-            <div style={{ width: '200px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '35px', fontSize: '12px' }}>
+            <div style={{ width: '200px', textAlign: 'center' }}>
               <strong>Verified by</strong>
-              <div style={{ marginTop: '15px', fontSize: '10px', color: '#4b5563' }}>Name & designation</div>
+              <div style={{ minHeight: '55px' }}></div>
+              <div style={{ fontSize: '11px', fontWeight: 'bold' }}>Name & Designation</div>
             </div>
-            <div style={{ width: '150px', textAlign: 'center' }}>
+            <div style={{ width: '200px', textAlign: 'center' }}>
               <strong>Prepared</strong>
-            </div>
-            <div style={{ width: '250px', textAlign: 'right' }}>
-              <div style={{ minHeight: '30px' }}></div>
-              <strong>for ASSISTANT DIRECTOR</strong>
+              <div style={{ minHeight: '55px' }}></div>
+              <strong>ASSISTANT DIRECTOR</strong>
             </div>
           </div>
         </div>
