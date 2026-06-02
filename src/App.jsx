@@ -449,16 +449,7 @@ export default function App() {
     const isHol = holidays.some(h => h.date === dateStr) || isSecondSaturday(dateStr);
     if (!isHol) return;
 
-    const alreadyCredited = cOffCredits.some(c => c.employee_id === employeeId && c.date_worked === dateStr);
-    if (alreadyCredited) return;
-
     const yearStr = dateStr.split('-')[0];
-    const currentYearCredits = cOffCredits.filter(c => c.employee_id === employeeId && c.date_worked.startsWith(yearStr)).length;
-    const limit = emp.co_limit ?? 15;
-    if (currentYearCredits >= limit) {
-      console.log(`C-Off limit reached for this year (${currentYearCredits}/${limit})`);
-      return;
-    }
 
     const parts = dateStr.split('-');
     const y = parseInt(parts[0], 10);
@@ -482,6 +473,13 @@ export default function App() {
       const coffList = JSON.parse(localStorage.getItem('ksc_c_off') || '[]');
       if (coffList.some(c => c.employee_id === employeeId && c.date_worked === dateStr)) return;
       
+      const currentYearCredits = coffList.filter(c => c.employee_id === employeeId && c.date_worked.startsWith(yearStr)).length;
+      const limit = emp.co_limit ?? 15;
+      if (currentYearCredits >= limit) {
+        console.log(`C-Off limit reached for this year (${currentYearCredits}/${limit})`);
+        return;
+      }
+
       const newCredit = {
         id: `coff-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         employee_id: employeeId,
@@ -495,8 +493,35 @@ export default function App() {
       coffList.push(newCredit);
       localStorage.setItem('ksc_c_off', JSON.stringify(coffList));
       addDemoAuditLog('C-Off Earned', `Employee ${emp.full_name} earned 1 C-Off credit for working on holiday ${dateStr}.`);
+      loadDemoData();
     } else {
       try {
+        // Query Supabase directly to prevent duplicate credits under any race condition
+        const { data: existing, error: existError } = await supabase
+          .from('c_off_credits')
+          .select('id')
+          .eq('employee_id', employeeId)
+          .eq('date_worked', dateStr);
+        if (existError) throw existError;
+        if (existing && existing.length > 0) {
+          console.log(`C-Off credit already exists on Supabase for ${dateStr}`);
+          return;
+        }
+
+        // Enforce limits by querying Supabase directly for the current year
+        const { data: yrCredits, error: limitError } = await supabase
+          .from('c_off_credits')
+          .select('id')
+          .eq('employee_id', employeeId)
+          .gte('date_worked', `${yearStr}-01-01`)
+          .lte('date_worked', `${yearStr}-12-31`);
+        if (limitError) throw limitError;
+        const limit = emp.co_limit ?? 15;
+        if (yrCredits && yrCredits.length >= limit) {
+          console.log(`C-Off limit reached for this year (${yrCredits.length}/${limit})`);
+          return;
+        }
+
         const { error } = await supabase
           .from('c_off_credits')
           .insert({
@@ -514,6 +539,7 @@ export default function App() {
           action: 'C-Off Earned',
           details: `Employee ${emp.full_name} earned 1 C-Off credit for working on holiday ${dateStr}.`
         });
+        loadSupabaseData();
       } catch (err) {
         console.error("Failed to insert C-Off credit to Supabase:", err);
       }
@@ -537,11 +563,8 @@ export default function App() {
       const rec = attendance.find(a => a.employee_id === employeeId && a.date === targetDate);
       if (rec && rec.approval_status !== 'Rejected') return rec.status;
       
-      const cellDate = new Date(targetDate);
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      if (cellDate > today) return '';
-      return 'P';
+      // Default to Weekly Off (WO) if no attendance record exists. Do NOT assume P.
+      return 'WO';
     };
 
     const sunStatus = getStatus(sundayStr);
@@ -574,16 +597,7 @@ export default function App() {
       return;
     }
 
-    const alreadyCredited = cOffCredits.some(c => c.employee_id === employeeId && c.date_worked === mondayStr);
-    if (alreadyCredited) return;
-
     const yearStr = mondayStr.split('-')[0];
-    const currentYearCredits = cOffCredits.filter(c => c.employee_id === employeeId && c.date_worked.startsWith(yearStr)).length;
-    const limit = emp.co_limit ?? 15;
-    if (currentYearCredits >= limit) {
-      console.log(`C-Off limit reached for this year (${currentYearCredits}/${limit})`);
-      return;
-    }
 
     const parts = mondayStr.split('-');
     const y = parseInt(parts[0], 10);
@@ -607,6 +621,13 @@ export default function App() {
       const coffList = JSON.parse(localStorage.getItem('ksc_c_off') || '[]');
       if (coffList.some(c => c.employee_id === employeeId && c.date_worked === mondayStr)) return;
       
+      const currentYearCredits = coffList.filter(c => c.employee_id === employeeId && c.date_worked.startsWith(yearStr)).length;
+      const limit = emp.co_limit ?? 15;
+      if (currentYearCredits >= limit) {
+        console.log(`C-Off limit reached for this year (${currentYearCredits}/${limit})`);
+        return;
+      }
+
       const newCredit = {
         id: `coff-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         employee_id: employeeId,
@@ -620,8 +641,35 @@ export default function App() {
       coffList.push(newCredit);
       localStorage.setItem('ksc_c_off', JSON.stringify(coffList));
       addDemoAuditLog('C-Off Earned', `Employee ${emp.full_name} earned 1 C-Off credit for Sunday/Monday dual working on ${sundayStr} & ${mondayStr}.`);
+      loadDemoData();
     } else {
       try {
+        // Query database directly to prevent duplicate inserts
+        const { data: existing, error: existError } = await supabase
+          .from('c_off_credits')
+          .select('id')
+          .eq('employee_id', employeeId)
+          .eq('date_worked', mondayStr);
+        if (existError) throw existError;
+        if (existing && existing.length > 0) {
+          console.log(`C-Off credit already exists on Supabase for ${mondayStr}`);
+          return;
+        }
+
+        // Limit verification query
+        const { data: yrCredits, error: limitError } = await supabase
+          .from('c_off_credits')
+          .select('id')
+          .eq('employee_id', employeeId)
+          .gte('date_worked', `${yearStr}-01-01`)
+          .lte('date_worked', `${yearStr}-12-31`);
+        if (limitError) throw limitError;
+        const limit = emp.co_limit ?? 15;
+        if (yrCredits && yrCredits.length >= limit) {
+          console.log(`C-Off limit reached for this year (${yrCredits.length}/${limit})`);
+          return;
+        }
+
         const { error } = await supabase
           .from('c_off_credits')
           .insert({
@@ -639,6 +687,7 @@ export default function App() {
           action: 'C-Off Earned',
           details: `Employee ${emp.full_name} earned 1 C-Off credit for Sunday/Monday dual working on ${sundayStr} & ${mondayStr}.`
         });
+        loadSupabaseData();
       } catch (err) {
         console.error("Failed to insert C-Off credit to Supabase:", err);
       }
@@ -651,30 +700,102 @@ export default function App() {
 
     let anyUpdated = false;
 
-    // Purge any C-Off credits before joining date OR before April 1, 2026
+    // Fetch the absolute latest C-Off credits directly to bypass any stale React state
+    let latestCredits = [];
     if (isDemoMode) {
-      const coffList = JSON.parse(localStorage.getItem('ksc_c_off') || '[]');
-      const filteredList = coffList.filter(c => !(c.employee_id === employeeId && (c.date_worked < '2026-04-01' || (emp.joining_date && c.date_worked < emp.joining_date))));
-      if (coffList.length !== filteredList.length) {
+      latestCredits = JSON.parse(localStorage.getItem('ksc_c_off') || '[]');
+    } else {
+      try {
+        const { data, error } = await supabase
+          .from('c_off_credits')
+          .select('*')
+          .eq('employee_id', employeeId);
+        if (!error && data) {
+          latestCredits = data;
+        }
+      } catch (err) {
+        console.error("Failed to load latest C-Off credits for backfill:", err);
+      }
+    }
+
+    // 1. Purge duplicate C-Off credits (keep only one per date_worked)
+    const uniqueCredits = [];
+    const seenDates = new Set();
+    const duplicateIdsToDelete = [];
+
+    latestCredits.forEach(c => {
+      if (c.employee_id === employeeId) {
+        if (seenDates.has(c.date_worked)) {
+          duplicateIdsToDelete.push(c.id);
+        } else {
+          seenDates.add(c.date_worked);
+          uniqueCredits.push(c);
+        }
+      } else {
+        uniqueCredits.push(c);
+      }
+    });
+
+    if (duplicateIdsToDelete.length > 0) {
+      console.log(`Purging duplicate C-Off credits for employee ${employeeId}:`, duplicateIdsToDelete);
+      if (isDemoMode) {
+        const updatedList = latestCredits.filter(c => !duplicateIdsToDelete.includes(c.id));
+        localStorage.setItem('ksc_c_off', JSON.stringify(updatedList));
+        latestCredits = updatedList;
+      } else {
+        try {
+          await supabase
+            .from('c_off_credits')
+            .delete()
+            .in('id', duplicateIdsToDelete);
+          // Reload latest list from DB after deletion
+          const { data } = await supabase
+            .from('c_off_credits')
+            .select('*')
+            .eq('employee_id', employeeId);
+          latestCredits = data || [];
+        } catch (err) {
+          console.error("Failed to delete duplicates from Supabase:", err);
+        }
+      }
+      anyUpdated = true;
+    }
+
+    // 2. Purge any C-Off credits before joining date OR before April 1, 2026
+    if (isDemoMode) {
+      const filteredList = latestCredits.filter(c => !(c.employee_id === employeeId && (c.date_worked < '2026-04-01' || (emp.joining_date && c.date_worked < emp.joining_date))));
+      if (latestCredits.length !== filteredList.length) {
         localStorage.setItem('ksc_c_off', JSON.stringify(filteredList));
+        latestCredits = filteredList;
         anyUpdated = true;
       }
     } else {
       try {
+        let deletedCount = 0;
         if (emp.joining_date && emp.joining_date.trim()) {
-          await supabase
+          const { data } = await supabase
             .from('c_off_credits')
             .delete()
             .eq('employee_id', employeeId)
-            .lt('date_worked', emp.joining_date);
+            .lt('date_worked', emp.joining_date)
+            .select();
+          if (data && data.length > 0) deletedCount += data.length;
         }
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('c_off_credits')
           .delete()
           .eq('employee_id', employeeId)
           .lt('date_worked', '2026-04-01')
           .select();
-        if (!error && data && data.length > 0) {
+        if (data && data.length > 0) deletedCount += data.length;
+        
+        if (deletedCount > 0) {
+          // Reload latest list from DB after deletion
+          const { data: refreshed } = await supabase
+            .from('c_off_credits')
+            .select('*')
+            .eq('employee_id', employeeId);
+          latestCredits = refreshed || [];
           anyUpdated = true;
         }
       } catch (err) {
@@ -730,11 +851,9 @@ export default function App() {
         const rec = attendance.find(a => a.employee_id === employeeId && a.date === targetDate);
         if (rec && rec.approval_status !== 'Rejected') return rec.status;
         
-        const cellDate = new Date(targetDate);
-        const now = new Date();
-        now.setHours(0,0,0,0);
-        if (cellDate > now) return '';
-        return 'P';
+        // Sundays are weekly off (WO) or standard off by default.
+        // We should NOT assume they worked unless there is a record.
+        return 'WO';
       };
 
       const sunStatus = getStatus(sundayStr);
@@ -744,10 +863,10 @@ export default function App() {
       const isMonWorking = ['P', 'OD', 'TR'].includes(monStatus);
 
       if (isSunWorking && isMonWorking) {
-        const alreadyCredited = cOffCredits.some(c => c.employee_id === employeeId && c.date_worked === mondayStr);
+        const alreadyCredited = latestCredits.some(c => c.employee_id === employeeId && c.date_worked === mondayStr);
         if (!alreadyCredited) {
           const yearStr = mondayStr.split('-')[0];
-          const currentYearCredits = cOffCredits.filter(c => c.employee_id === employeeId && c.date_worked.startsWith(yearStr)).length;
+          const currentYearCredits = latestCredits.filter(c => c.employee_id === employeeId && c.date_worked.startsWith(yearStr)).length;
           const limit = emp.co_limit ?? 15;
           
           if (currentYearCredits < limit) {
@@ -801,7 +920,7 @@ export default function App() {
         }
       } else {
         // Purge if it was previously credited but now one of them is WO/leave!
-        const invalidCredits = cOffCredits.filter(c => c.employee_id === employeeId && (c.date_worked === sundayStr || c.date_worked === mondayStr));
+        const invalidCredits = latestCredits.filter(c => c.employee_id === employeeId && (c.date_worked === sundayStr || c.date_worked === mondayStr));
         if (invalidCredits.length > 0) {
           console.log(`Purging invalid Sunday/Monday C-Off credits for ${sundayStr}/${mondayStr} because they are not both working`);
           if (isDemoMode) {
@@ -845,20 +964,17 @@ export default function App() {
           const rec = attendance.find(a => a.employee_id === employeeId && a.date === targetDate);
           if (rec && rec.approval_status !== 'Rejected') return rec.status;
           
-          const cellDate = new Date(targetDate);
-          const now = new Date();
-          now.setHours(0,0,0,0);
-          if (cellDate > now) return '';
-          return 'P';
+          // Holidays are 'H' by default. We should NOT assume they worked unless there is a record.
+          return 'H';
         };
 
         const status = getStatus(dateStr);
         const isPresent = ['P', 'OD', 'TR'].includes(status);
         if (isPresent) {
-          const alreadyCredited = cOffCredits.some(c => c.employee_id === employeeId && c.date_worked === dateStr);
+          const alreadyCredited = latestCredits.some(c => c.employee_id === employeeId && c.date_worked === dateStr);
           if (!alreadyCredited) {
             const yearStr = dateStr.split('-')[0];
-            const currentYearCredits = cOffCredits.filter(c => c.employee_id === employeeId && c.date_worked.startsWith(yearStr)).length;
+            const currentYearCredits = latestCredits.filter(c => c.employee_id === employeeId && c.date_worked.startsWith(yearStr)).length;
             const limit = emp.co_limit ?? 15;
             
             if (currentYearCredits < limit) {
@@ -4245,6 +4361,37 @@ export default function App() {
               )}
             </div>
           )}
+
+          <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '20px', marginTop: '10px' }}>
+            <button 
+              className="btn btn-secondary" 
+              style={{ 
+                width: '100%', 
+                padding: '10px 16px', 
+                backgroundColor: 'var(--accent-purple)', 
+                borderColor: 'var(--accent-purple)', 
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }} 
+              onClick={() => {
+                setLeaveFormEmp(viewedEmployee);
+                setLeaveFormType('Casual Leave (CL)');
+                setLeaveFormFrom('');
+                setLeaveFormTo('');
+                setLeaveFormTotalDays('1');
+                setLeaveFormReason('');
+                setLeaveFormAddress(viewedEmployee.address || '');
+                setLeaveFormPhone(viewedEmployee.mobile_number || '');
+                setLeaveFormAppDate(new Date().toISOString().split('T')[0]);
+                setShowLeaveFormModal(true);
+              }}
+            >
+              <Calendar size={16} /> Print Leave Form (Malayalam)
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -4502,24 +4649,6 @@ export default function App() {
                     )}
                     <button className="btn btn-secondary" style={{ padding: '8px 16px' }} onClick={() => printEmployeeAttendance(emp, reportYear, reportMonth)}>
                       <FileText size={16} /> Print Attendance Sheet
-                    </button>
-                    <button 
-                      className="btn btn-secondary" 
-                      style={{ padding: '8px 16px', backgroundColor: 'var(--accent-purple)', borderColor: 'var(--accent-purple)', color: '#ffffff' }} 
-                      onClick={() => {
-                        setLeaveFormEmp(emp);
-                        setLeaveFormType('Casual Leave (CL)');
-                        setLeaveFormFrom('');
-                        setLeaveFormTo('');
-                        setLeaveFormTotalDays('1');
-                        setLeaveFormReason('');
-                        setLeaveFormAddress(emp.address || '');
-                        setLeaveFormPhone(emp.mobile_number || '');
-                        setLeaveFormAppDate(new Date().toISOString().split('T')[0]);
-                        setShowLeaveFormModal(true);
-                      }}
-                    >
-                      <Calendar size={16} /> Print Leave Form
                     </button>
                   </div>
                 </div>
@@ -5123,7 +5252,7 @@ export default function App() {
               {reqStatus === 'CO' && (
                 <div className="form-group">
                   <label>Select Earned C-Off to Redeem</label>
-                  {cOffCredits.filter(c => c.employee_id === currentUser.id && (c.status === 'Available' || c.id === selectedCOffCreditId)).length === 0 ? (
+                  {cOffCredits.filter(c => c.employee_id === viewedEmployee.id && (c.status === 'Available' || c.id === selectedCOffCreditId)).length === 0 ? (
                     <div style={{ color: 'var(--accent-rose)', fontSize: '12px', marginTop: '5px', fontWeight: '600' }}>
                       ⚠️ You have no available earned C-Off credits to redeem!
                     </div>
@@ -5135,7 +5264,7 @@ export default function App() {
                       required
                     >
                       <option value="">-- Choose C-Off Credit --</option>
-                      {cOffCredits.filter(c => c.employee_id === currentUser.id && (c.status === 'Available' || c.id === selectedCOffCreditId)).map(c => (
+                      {cOffCredits.filter(c => c.employee_id === viewedEmployee.id && (c.status === 'Available' || c.id === selectedCOffCreditId)).map(c => (
                         <option key={c.id} value={c.id}>
                           Worked on {c.date_worked} (Expires: {c.expiry_date}){c.id === selectedCOffCreditId ? ' [Selected]' : ''}
                         </option>

@@ -1478,31 +1478,23 @@ h1, h2, h3, h4, h5, h6 {
 
 /* 3. Malayalam Leave Request Print Form Styling */
 .leave-request-print {
-  font-family: 'Times New Roman', 'Gargi', 'Kartika', 'Arial', serif !important;
+  font-family: 'Meera', 'Gayathri', 'Manjari', 'AnjaliOldLipi', 'Kartika', 'Times New Roman', 'Arial', sans-serif !important;
   color: #000000 !important;
   background: #ffffff !important;
-  padding: 40px;
-  line-height: 2.2 !important;
-  font-size: 14pt !important;
+  padding: 20px;
+  line-height: 1.6 !important;
+  font-size: 11.5pt !important;
 }
 
 .leave-request-print .title {
   text-align: center;
-  font-size: 18pt !important;
+  font-size: 14pt !important;
   font-weight: bold;
-  margin-bottom: 5px;
-}
-
-.leave-request-print .subtitle {
-  text-align: center;
-  font-size: 16pt !important;
-  font-weight: bold;
-  margin-bottom: 40px;
-  text-decoration: underline;
+  margin-bottom: 25px;
 }
 
 .leave-request-print .field-row {
-  margin-bottom: 22px;
+  margin-bottom: 12px;
 }
 
 .leave-request-print .field-dots {
@@ -1514,8 +1506,9 @@ h1, h2, h3, h4, h5, h6 {
 .leave-request-print .signatures-row {
   display: flex !important;
   justify-content: space-between !important;
-  margin-top: 60px;
-  font-size: 13pt !important;
+  margin-top: 30px;
+  font-size: 10.5pt !important;
+  line-height: 1.4 !important;
 }
 
 .leave-request-print .signature-col {
