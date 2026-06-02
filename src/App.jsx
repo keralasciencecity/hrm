@@ -125,6 +125,25 @@ function formatDateDMY(dateStr) {
   return dateStr;
 }
 
+// Visual status style for printed attendance sheet
+function getAttStatusStyle(status) {
+  if (!status || status === '-' || status === 'AB') return {};
+  const s = status.toUpperCase();
+  if (s === 'P' || s === 'OD' || s === 'TR') {
+    return { color: '#0f5132', fontWeight: 'bold' }; // Dark green for presence
+  }
+  if (s === 'CL' || s === 'ML' || s === 'EL' || s === 'SL' || s === 'FH' || s === 'SH' || s === 'CO' || s === 'TO') {
+    return { color: '#842029', fontWeight: 'bold' }; // Crimson red for leaves
+  }
+  if (s === 'A' || s === 'LOP') {
+    return { color: '#b91c1c', fontWeight: 'bold' }; // Deep red for absent / LOP
+  }
+  if (s === 'WO' || s === 'H') {
+    return { color: '#084298', fontWeight: 'bold' }; // Blue for Weekly Off / Holiday
+  }
+  return {};
+}
+
 // Indian English number to words converter
 function convertNumberToWords(num) {
   const a = [
@@ -2553,6 +2572,7 @@ export default function App() {
     today.setHours(0,0,0,0);
 
     let workedDays = 0;
+    let clDaysTaken = 0;
     const dayRows = [];
 
     for (let day = 1; day <= numDays; day++) {
@@ -2577,6 +2597,16 @@ export default function App() {
           workedDays += 0.5;
           fnStatus = 'AB';
           anStatus = 'P';
+        } else if (record.status === 'CL') {
+          clDaysTaken += 1.0;
+          fnStatus = 'CL';
+          anStatus = 'CL';
+        } else if (record.status === 'WO') {
+          fnStatus = 'WO';
+          anStatus = 'WO';
+        } else if (record.status === 'H') {
+          fnStatus = 'H';
+          anStatus = 'H';
         }
       } else if (!isFuture) {
         workedDays += 1.0;
@@ -2594,9 +2624,12 @@ export default function App() {
       });
     }
 
+    const clLimit = isDemoMode ? (emp.cl_limit ?? 3) : (leaveBalances[emp.id]?.cl_limit ?? 3);
+    const paidLeaves = Math.min(clLimit, clDaysTaken);
     const rate = emp.daily_wage_rate || 0;
     const maxDays = emp.max_working_days || 25;
-    const payableDays = Math.min(workedDays, maxDays);
+    const totalPaidDays = workedDays + paidLeaves;
+    const payableDays = Math.min(totalPaidDays, maxDays);
     const totalSalary = payableDays * rate;
     const totalSalaryInWords = convertNumberToWords(totalSalary);
 
@@ -2706,6 +2739,15 @@ export default function App() {
     const calculatedLeavesCount = summary.CL + summary.ML + summary.EL + summary.SL + (summary.FH * 0.5) + (summary.SH * 0.5);
     const calculatedPresentCount = summary.P + summary.OD + summary.TR + (summary.FH * 0.5) + (summary.SH * 0.5);
 
+    let lopCount = (summary.A || 0) + (summary.LOP || 0);
+    if (targetEmp.employment_category === 'Daily Wage') {
+      const clLimitDW = isDemoMode ? (targetEmp.cl_limit ?? 3) : (leaveBalances[targetEmp.id]?.cl_limit ?? 3);
+      const clTakenInMonth = summary.CL || 0;
+      const excessCL = Math.max(0, clTakenInMonth - clLimitDW);
+      lopCount += excessCL;
+      lopCount += (summary.ML || 0) + (summary.EL || 0) + (summary.SL || 0);
+    }
+
     setPrintData({
       type: 'attendance',
       targetEmp,
@@ -2716,7 +2758,7 @@ export default function App() {
       summary,
       calculatedPresentCount,
       calculatedLeavesCount,
-      lopCount: summary.A || 0,
+      lopCount,
       cl_balance,
       el_balance,
       sl_balance,
@@ -5234,7 +5276,7 @@ export default function App() {
       )}
       </div>
 
-       {printData && printData.type === 'attendance' && (
+      {printData && printData.type === 'attendance' && (
         <div className="print-report-container">
           <div className="header" style={{ textAlign: 'center', marginBottom: '15px' }}>
             <h1 style={{ fontSize: '22px', fontWeight: 'bold', margin: 0 }}>KERALA STATE SCIENCE AND TECHNOLOGY MUSEUM</h1>
@@ -5246,7 +5288,7 @@ export default function App() {
           </div>
           <div className="divider"></div>
           
-          <div className="daily-wage-fields" style={{ marginBottom: '15px', fontSize: '12px' }}>
+          <div className="daily-wage-fields" style={{ marginBottom: '15px', fontSize: '12pt' }}>
             <div style={{ display: 'flex', marginBottom: '4px' }}>
               <span style={{ width: '220px', fontWeight: 'bold' }}>Employee Name</span>
               <span style={{ width: '20px', textAlign: 'center' }}>:</span>
@@ -5274,39 +5316,39 @@ export default function App() {
             </div>
           </div>
 
-          <table className="daily-wage-print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '15px' }}>
+          <table className="daily-wage-print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12pt', marginBottom: '15px' }}>
             <thead>
               <tr>
-                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
-                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
-                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>A.N</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>A.N</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>A.N</th>
               </tr>
             </thead>
             <tbody>
               {renderDailyWageTableRows(printData.rows).map((row, idx) => (
                 <tr key={idx}>
-                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d1}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn1}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an1}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d2}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn2}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an2}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d3}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn3}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an3}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '4px', backgroundColor: '#f3f4f6', fontSize: '12pt' }}>{row.d1}</td>
+                  <td style={{ ...getAttStatusStyle(row.fn1), textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.fn1}</td>
+                  <td style={{ ...getAttStatusStyle(row.an1), textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.an1}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '4px', backgroundColor: '#f3f4f6', fontSize: '12pt' }}>{row.d2}</td>
+                  <td style={{ ...getAttStatusStyle(row.fn2), textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.fn2}</td>
+                  <td style={{ ...getAttStatusStyle(row.an2), textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.an2}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '4px', backgroundColor: '#f3f4f6', fontSize: '12pt' }}>{row.d3}</td>
+                  <td style={{ ...getAttStatusStyle(row.fn3), textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.fn3}</td>
+                  <td style={{ ...getAttStatusStyle(row.an3), textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.an3}</td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          <div className="summary-section" style={{ borderTop: '1px solid #000000', paddingTop: '10px', fontSize: '11px' }}>
-            <strong style={{ display: 'block', fontSize: '12px', marginBottom: '6px' }}>Summary</strong>
+          <div className="summary-section" style={{ borderTop: '1px solid #000000', paddingTop: '10px', fontSize: '12pt' }}>
+            <strong style={{ display: 'block', fontSize: '14pt', marginBottom: '6px' }}>Summary</strong>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
               <div>
                 <div>Total Leaves Taken: <strong>{printData.calculatedLeavesCount}</strong></div>
@@ -5328,25 +5370,12 @@ export default function App() {
               </div>
             </div>
           </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '35px', fontSize: '12px' }}>
-            <div style={{ width: '200px', textAlign: 'center' }}>
-              <strong>Verified by</strong>
-              <div style={{ minHeight: '55px' }}></div>
-              <div style={{ fontSize: '11px', fontWeight: 'bold' }}>Name & Designation</div>
-            </div>
-            <div style={{ width: '200px', textAlign: 'center' }}>
-              <strong>Prepared</strong>
-              <div style={{ minHeight: '55px' }}></div>
-              <strong>ASSISTANT DIRECTOR</strong>
-            </div>
-          </div>
         </div>
       )}
 
       {printData && printData.type === 'wages' && (
         <div className="print-report-container">
-          <div className="page-number-header" style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '12px', marginBottom: '10px' }}>1</div>
+          <div className="page-number-header" style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '12pt', marginBottom: '10px' }}>1</div>
           <div className="header" style={{ textAlign: 'center', marginBottom: '15px' }}>
             <h1 style={{ fontSize: '18px', fontWeight: 'bold', letterSpacing: '0.5px', margin: 0 }}>KERALA STATE SCIENCE AND TECHNOLOGY MUSEUM</h1>
             <h2 style={{ fontSize: '13px', margin: '2px 0 0 0', fontWeight: 'normal' }}>VIKAS BHAVAN. P.O, THIRUVANANTHAPURAM</h2>
@@ -5356,7 +5385,7 @@ export default function App() {
             </p>
           </div>
           
-          <div className="daily-wage-fields" style={{ marginBottom: '15px', fontSize: '12px' }}>
+          <div className="daily-wage-fields" style={{ marginBottom: '15px', fontSize: '12pt' }}>
             <div style={{ display: 'flex', marginBottom: '4px' }}>
               <span style={{ width: '220px', fontWeight: 'bold' }}>Name and address of person</span>
               <span style={{ width: '20px', textAlign: 'center' }}>:</span>
@@ -5393,38 +5422,38 @@ export default function App() {
             </div>
           </div>
 
-          <table className="daily-wage-print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '15px' }}>
+          <table className="daily-wage-print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12pt', marginBottom: '15px' }}>
             <thead>
               <tr>
-                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
-                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
-                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>A.N</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>A.N</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>A.N</th>
               </tr>
             </thead>
             <tbody>
               {renderDailyWageTableRows(printData.report.dayRows).map((row, idx) => (
                 <tr key={idx}>
-                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d1}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn1}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an1}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d2}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn2}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an2}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d3}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn3}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an3}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '4px', backgroundColor: '#f3f4f6', fontSize: '12pt' }}>{row.d1}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.fn1}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.an1}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '4px', backgroundColor: '#f3f4f6', fontSize: '12pt' }}>{row.d2}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.fn2}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.an2}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '4px', backgroundColor: '#f3f4f6', fontSize: '12pt' }}>{row.d3}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.fn3}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.an3}</td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          <div style={{ fontSize: '11px', lineHeight: '1.5', marginBottom: '20px' }}>
+          <div style={{ fontSize: '12pt', lineHeight: '1.5', marginBottom: '20px' }}>
             <p style={{ margin: '0 0 8px 0', textAlign: 'justify' }}>
               Certified that he/she had worked for <strong>{printData.report.payableDays} days</strong> @ Rs.{printData.report.rate}/- Rs.<strong>{printData.report.totalSalary} /-</strong> (Rupees <strong>{printData.report.totalSalaryInWords} only</strong>) during the month of <strong>{new Date(printData.year, printData.month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</strong>. Head of Account: Salary. He/ She was engaged at Science City Kottayam as per directions.
             </p>
@@ -5433,11 +5462,11 @@ export default function App() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '35px', fontSize: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '35px', fontSize: '12pt' }}>
             <div style={{ width: '200px', textAlign: 'center' }}>
               <strong>Verified by</strong>
               <div style={{ minHeight: '55px' }}></div>
-              <div style={{ fontSize: '11px', fontWeight: 'bold' }}>Name & Designation</div>
+              <div style={{ fontSize: '12pt', fontWeight: 'bold' }}>Name & Designation</div>
             </div>
             <div style={{ width: '200px', textAlign: 'center' }}>
               <strong>Prepared</strong>
@@ -5450,7 +5479,7 @@ export default function App() {
 
       {printData && printData.type === 'batch-wages' && printData.reports.map((report, idx) => (
         <div key={report.employee.id} className="print-report-container print-page-break">
-          <div className="page-number-header" style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '12px', marginBottom: '10px' }}>{idx + 1}</div>
+          <div className="page-number-header" style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '12pt', marginBottom: '10px' }}>{idx + 1}</div>
           <div className="header" style={{ textAlign: 'center', marginBottom: '15px' }}>
             <h1 style={{ fontSize: '18px', fontWeight: 'bold', letterSpacing: '0.5px', margin: 0 }}>KERALA STATE SCIENCE AND TECHNOLOGY MUSEUM</h1>
             <h2 style={{ fontSize: '13px', margin: '2px 0 0 0', fontWeight: 'normal' }}>VIKAS BHAVAN. P.O, THIRUVANANTHAPURAM</h2>
@@ -5460,7 +5489,7 @@ export default function App() {
             </p>
           </div>
           
-          <div className="daily-wage-fields" style={{ marginBottom: '15px', fontSize: '12px' }}>
+          <div className="daily-wage-fields" style={{ marginBottom: '15px', fontSize: '12pt' }}>
             <div style={{ display: 'flex', marginBottom: '4px' }}>
               <span style={{ width: '220px', fontWeight: 'bold' }}>Name and address of person</span>
               <span style={{ width: '20px', textAlign: 'center' }}>:</span>
@@ -5497,38 +5526,38 @@ export default function App() {
             </div>
           </div>
 
-          <table className="daily-wage-print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', marginBottom: '15px' }}>
+          <table className="daily-wage-print-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12pt', marginBottom: '15px' }}>
             <thead>
               <tr>
-                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
-                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
-                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}></th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>F.N</th>
-                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>A.N</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>A.N</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>A.N</th>
+                <th style={{ width: '6%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}></th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>F.N</th>
+                <th style={{ width: '12%', textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>A.N</th>
               </tr>
             </thead>
             <tbody>
               {renderDailyWageTableRows(report.dayRows).map((row, idx) => (
                 <tr key={idx}>
-                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d1}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn1}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an1}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d2}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn2}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an2}</td>
-                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '3px', backgroundColor: '#f3f4f6' }}>{row.d3}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.fn3}</td>
-                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '3px' }}>{row.an3}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '4px', backgroundColor: '#f3f4f6', fontSize: '12pt' }}>{row.d1}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.fn1}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.an1}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '4px', backgroundColor: '#f3f4f6', fontSize: '12pt' }}>{row.d2}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.fn2}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.an2}</td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold', border: '1px solid #000000', padding: '4px', backgroundColor: '#f3f4f6', fontSize: '12pt' }}>{row.d3}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.fn3}</td>
+                  <td style={{ textAlign: 'center', border: '1px solid #000000', padding: '4px', fontSize: '12pt' }}>{row.an3}</td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          <div style={{ fontSize: '11px', lineHeight: '1.5', marginBottom: '20px' }}>
+          <div style={{ fontSize: '12pt', lineHeight: '1.5', marginBottom: '20px' }}>
             <p style={{ margin: '0 0 8px 0', textAlign: 'justify' }}>
               Certified that he/she had worked for <strong>{report.payableDays} days</strong> @ Rs.{report.rate}/- Rs.<strong>{report.totalSalary} /-</strong> (Rupees <strong>{report.totalSalaryInWords} only</strong>) during the month of <strong>{new Date(printData.year, printData.month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</strong>. Head of Account: Salary. He/ She was engaged at Science City Kottayam as per directions.
             </p>
@@ -5537,11 +5566,11 @@ export default function App() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '35px', fontSize: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '35px', fontSize: '12pt' }}>
             <div style={{ width: '200px', textAlign: 'center' }}>
               <strong>Verified by</strong>
               <div style={{ minHeight: '55px' }}></div>
-              <div style={{ fontSize: '11px', fontWeight: 'bold' }}>Name & Designation</div>
+              <div style={{ fontSize: '12pt', fontWeight: 'bold' }}>Name & Designation</div>
             </div>
             <div style={{ width: '200px', textAlign: 'center' }}>
               <strong>Prepared</strong>
