@@ -6133,44 +6133,30 @@ export default function App() {
           <div className="title">സയൻസ് സിറ്റി കോട്ടയം</div>
           
           <div className="field-row" style={{ marginTop: '40px' }}>
-            പേര് : <span className="field-dots" style={{ minWidth: '80%' }}>{printData.employee.full_name}</span>
+            പേര് : <span className="field-dots" style={{ minWidth: '350px' }}>{printData.employee.full_name}</span>
           </div>
           
           <div className="field-row">
-            ഉദ്യോഗപ്പേര് : <span className="field-dots" style={{ minWidth: '70%' }}>{printData.employee.designation}</span>
+            ഉദ്യോഗപ്പേര് : <span className="field-dots" style={{ minWidth: '300px' }}>{printData.employee.designation}</span>
+          </div>
+          
+          <div className="field-row" style={{ whiteSpace: 'nowrap' }}>
+            അപേക്ഷിച്ച കാലയളവ് : <span className="field-dots" style={{ minWidth: '40px', textAlign: 'center' }}>{printData.form.leaveFormTotalDays}</span> (ദിവസങ്ങൾ) &nbsp;തിയതി <span className="field-dots" style={{ minWidth: '100px', textAlign: 'center' }}>{new Date(printData.form.leaveFormFrom).toLocaleDateString('en-IN')}</span> മുതൽ <span className="field-dots" style={{ minWidth: '100px', textAlign: 'center' }}>{new Date(printData.form.leaveFormTo).toLocaleDateString('en-IN')}</span> വരെ
           </div>
           
           <div className="field-row">
-            അപേക്ഷിച്ച കാലയളവ് : <span className="field-dots" style={{ minWidth: '80px', textAlign: 'center' }}>{printData.form.leaveFormTotalDays}</span> (ദിവസങ്ങൾ) 
-            &nbsp; തിയതി മുതൽ <span className="field-dots" style={{ minWidth: '120px', textAlign: 'center' }}>{new Date(printData.form.leaveFormFrom).toLocaleDateString('en-IN')}</span> 
-            &nbsp; വരെ <span className="field-dots" style={{ minWidth: '120px', textAlign: 'center' }}>{new Date(printData.form.leaveFormTo).toLocaleDateString('en-IN')}</span>
+            അവധിയുടെ സ്വഭാവം : <span className="field-dots" style={{ minWidth: '300px' }}>{printData.form.leaveFormType}</span>
           </div>
           
           <div className="field-row">
-            അവധിയുടെ സ്വഭാവം : <span className="field-dots" style={{ minWidth: '70%' }}>{printData.form.leaveFormType}</span>
+            അവധിയുടെ കാരണം : <span className="field-dots" style={{ minWidth: '300px' }}>{printData.form.leaveFormReason}</span>
           </div>
-          
-          <div className="field-row">
-            അവധിയുടെ കാരണം : <span className="field-dots" style={{ minWidth: '70%' }}>{printData.form.leaveFormReason}</span>
-          </div>
-
-          {printData.form.leaveFormAddress && (
-            <div className="field-row">
-              അവധിക്കാലത്തെ വിലാസം : <span className="field-dots" style={{ minWidth: '70%' }}>{printData.form.leaveFormAddress}</span>
-            </div>
-          )}
-
-          {printData.form.leaveFormPhone && (
-            <div className="field-row">
-              ബന്ധപ്പെടേണ്ട ഫോൺ നമ്പർ : <span className="field-dots" style={{ minWidth: '70%' }}>{printData.form.leaveFormPhone}</span>
-            </div>
-          )}
           
           <div className="field-row" style={{ marginTop: '30px' }}>
             തിയതി : <span className="field-dots" style={{ minWidth: '150px' }}>{new Date(printData.form.leaveFormAppDate).toLocaleDateString('en-IN')}</span>
           </div>
 
-          <div style={{ marginTop: '50px', fontWeight: 'bold', fontSize: '15pt' }}>ശുപാർശ</div>
+          <div style={{ marginTop: '40px', fontSize: '11.5pt' }}>ശുപാർശ</div>
           
           <div className="signatures-row">
             <div className="signature-col">
