@@ -249,6 +249,22 @@ export default function App() {
   const [leaveFormAddress, setLeaveFormAddress] = useState('');
   const [leaveFormPhone, setLeaveFormPhone] = useState('');
   const [leaveFormAppDate, setLeaveFormAppDate] = useState(() => new Date().toISOString().split('T')[0]);
+  // Auto-calculate total days for leave application form
+  useEffect(() => {
+    if (leaveFormFrom && leaveFormTo) {
+      const fromD = new Date(leaveFormFrom);
+      const toD = new Date(leaveFormTo);
+      if (!isNaN(fromD.getTime()) && !isNaN(toD.getTime())) {
+        const diffTime = toD.getTime() - fromD.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        if (diffDays > 0) {
+          setLeaveFormTotalDays(String(diffDays));
+        } else {
+          setLeaveFormTotalDays('0');
+        }
+      }
+    }
+  }, [leaveFormFrom, leaveFormTo]);
 
   // Database Mode State
   const [isDemoMode, setIsDemoMode] = useState(true);
@@ -6158,21 +6174,18 @@ export default function App() {
 
           <div style={{ marginTop: '40px', fontSize: '11.5pt' }}>ശുപാർശ</div>
           
-          <div className="signatures-row">
-            <div className="signature-col">
-              മേലധികാരിയുടെ അഭിപ്രായവും <br />
-              തിയതിയും / ഒപ്പും
-              <div style={{ marginTop: '60px', borderBottom: '1px solid #000000', width: '220px' }}></div>
+          <div style={{ marginTop: '50px', fontSize: '11.5pt', lineHeight: '1.8' }}>
+            {/* Row 1 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>മേലധികാരിയുടെ അഭിപ്രായവും</div>
+              <div style={{ textAlign: 'center', minWidth: '180px' }}>അപേക്ഷകന്റെ ഒപ്പ്</div>
             </div>
             
-            <div className="signature-col right" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              <div style={{ textAlign: 'center' }}>
-                അപേക്ഷകന്റെ ഒപ്പ്
-                <div style={{ marginTop: '50px', width: '180px' }}></div>
-              </div>
-              <div style={{ marginTop: '30px', textAlign: 'right', fontWeight: 'bold' }}>
-                അനുവദിച്ചു / നിരസിച്ചു
-              </div>
+            {/* Row 2 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: '40px' }}>
+              <div>തിയതിയും / ഒപ്പും</div>
+              <div style={{ flexGrow: 1, textAlign: 'center', color: '#000000' }}>അനുവദിച്ചു / നിരസിച്ചു</div>
+              <div style={{ minWidth: '180px' }}></div>
             </div>
           </div>
         </div>
