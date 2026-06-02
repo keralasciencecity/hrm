@@ -1172,11 +1172,26 @@ export default function App() {
 
   useEffect(() => {
     if (printData) {
-      const timer = setTimeout(() => {
-        window.print();
+      const handleAfterPrint = () => {
         setPrintData(null);
-      }, 500);
-      return () => clearTimeout(timer);
+      };
+      
+      window.addEventListener('afterprint', handleAfterPrint);
+      
+      const printTimer = setTimeout(() => {
+        window.print();
+        // Fallback for async mobile printing viewports: keep print container mounted
+        // for 5 seconds to ensure mobile Chrome/Safari printing engines capture the DOM.
+        const fallbackTimer = setTimeout(() => {
+          setPrintData(null);
+        }, 5000);
+        return () => clearTimeout(fallbackTimer);
+      }, 800);
+
+      return () => {
+        clearTimeout(printTimer);
+        window.removeEventListener('afterprint', handleAfterPrint);
+      };
     }
   }, [printData]);
 
