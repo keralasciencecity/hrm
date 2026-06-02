@@ -4934,7 +4934,7 @@ export default function App() {
           <div className="login-logo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', marginBottom: '25px', textAlign: 'left' }}>
             <Compass size={42} style={{ color: 'var(--accent-blue)', flexShrink: 0 }} />
             <div>
-              <h1 style={{ fontSize: '22px', margin: 0, fontWeight: '800', background: 'linear-gradient(135deg, #ffffff 40%, var(--text-secondary) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Kerala Science City</h1>
+              <h1 style={{ fontSize: '22px', margin: 0, fontWeight: '800', background: 'linear-gradient(135deg, var(--text-primary) 40%, var(--text-secondary) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Kerala Science City</h1>
               <p style={{ margin: '2px 0 0 0', color: 'var(--text-secondary)', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Staff Portal & HRM System</p>
             </div>
           </div>
@@ -4982,7 +4982,7 @@ export default function App() {
           {/* Attribution Footer */}
           <div style={{ textAlign: 'center', fontSize: '10px', color: 'var(--text-muted)', marginTop: '25px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '15px' }}>
             Conceived, Designed & Developed by <br />
-            <span style={{ color: 'var(--text-secondary)', fontWeight: '600', display: 'block', margin: '3px 0 6px 0' }}>Sujith B Kallara, ScO</span>
+            <span style={{ color: 'var(--text-secondary)', fontWeight: '600', display: 'block', margin: '3px 0 6px 0' }}>Sujith B Kallara, Scientific Officer, KSSTM</span>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '14px', marginTop: '6px' }}>
               <a href="mailto:sujithbkallara@gmail.com" title="Email" style={{ color: 'var(--text-muted)', transition: 'color 0.2s', display: 'inline-flex', alignItems: 'center' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-blue)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
                 <Mail size={13} />
@@ -5172,7 +5172,7 @@ export default function App() {
           {/* Credits Footer */}
           <div style={{ textAlign: 'center', fontSize: '10px', color: 'var(--text-muted)', marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
             Conceived, Designed & Developed by <br />
-            <span style={{ color: 'var(--text-secondary)', fontWeight: '600', display: 'block', margin: '3px 0 6px 0' }}>Sujith B Kallara, ScO</span>
+            <span style={{ color: 'var(--text-secondary)', fontWeight: '600', display: 'block', margin: '3px 0 6px 0' }}>Sujith B Kallara, Scientific Officer, KSSTM</span>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '14px', marginTop: '6px' }}>
               <a href="mailto:sujithbkallara@gmail.com" title="Email" style={{ color: 'var(--text-muted)', transition: 'color 0.2s', display: 'inline-flex', alignItems: 'center' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-blue)'} onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
                 <Mail size={13} />
