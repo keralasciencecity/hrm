@@ -4244,7 +4244,8 @@ export default function App() {
   };
 
   return (
-    <div className="app-container">
+    <>
+      <div className="app-container">
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div className="sidebar-overlay" onClick={() => setIsSidebarOpen(false)}></div>
@@ -4980,6 +4981,7 @@ export default function App() {
           </div>
         </div>
       )}
+      </div>
 
       {/* 7. Premium, Native Print Layout Gated Grid (Bypasses popup blockers completely!) */}
       {printData && printData.type === 'attendance' && (
@@ -5089,7 +5091,7 @@ export default function App() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
