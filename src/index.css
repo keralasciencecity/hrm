@@ -1239,6 +1239,18 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 @media print {
+  /* Reset document root for physical/PDF printing */
+  html, body, #root {
+    background: #ffffff !important;
+    color: #000000 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
   /* Hide the active web application frame completely during printing */
   .app-container, .main-workspace, .sidebar, .sidebar-overlay, .modal-overlay, button, .btn {
     display: none !important;
