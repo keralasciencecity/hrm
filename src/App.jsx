@@ -5003,6 +5003,7 @@ export default function App() {
                 <WhatsAppIcon size={12} />
               </a>
             </div>
+            <div style={{ marginTop: '8px', fontSize: '9px', opacity: 0.7, color: 'var(--text-muted)' }}>Software Version: v2.0.1</div>
           </div>
 
           {/* Subtle Switcher Toggle Settings Icon */}
@@ -5193,6 +5194,7 @@ export default function App() {
                 <WhatsAppIcon size={12} />
               </a>
             </div>
+            <div style={{ marginTop: '8px', fontSize: '9px', opacity: 0.7, color: 'var(--text-muted)' }}>Software Version: v2.0.1</div>
           </div>
         </div>
       </aside>
@@ -5853,7 +5855,7 @@ export default function App() {
       {/* 6. Employee Directory Details Modal (Glassmorphic design with Directory Privacy!) */}
       {showDetailsModal && selectedEmpDetails && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '750px', background: 'rgba(28, 31, 38, 0.95)', backdropFilter: 'blur(20px)', border: '1px solid var(--glass-border)' }}>
+          <div className="modal-content" style={{ maxWidth: '750px', background: 'var(--glass-bg)', backdropFilter: 'blur(20px)', border: '1px solid var(--glass-border)' }}>
             <div className="modal-header">
               <h3>Employee Directory Profile</h3>
               <button className="modal-close-btn" onClick={() => setShowDetailsModal(false)}>✕</button>
