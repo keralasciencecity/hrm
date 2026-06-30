@@ -215,12 +215,12 @@ function convertNumberToWords(num) {
 function renderDailyWageTableRows(dayRows) {
   const rows = [];
   for (let i = 0; i < 11; i++) {
-    const d1 = i + 1; // 1 to 10
-    const d2 = i + 11; // 11 to 20
+    const d1 = i < 10 ? i + 1 : null;
+    const d2 = i < 10 ? i + 11 : null;
     const d3 = i + 21; // 21 to 31
 
-    const r1 = dayRows.find(r => r.day === d1);
-    const r2 = dayRows.find(r => r.day === d2);
+    const r1 = d1 !== null ? dayRows.find(r => r.day === d1) : null;
+    const r2 = d2 !== null ? dayRows.find(r => r.day === d2) : null;
     const r3 = dayRows.find(r => r.day === d3);
 
     rows.push({
@@ -4101,11 +4101,11 @@ export default function App() {
         cellStyle.cursor = 'not-allowed';
         cellStyle.opacity = 0.3;
       } else if (matchingHols.length > 0) {
-        // Holiday highlight: Green/emerald tint
-        cellStyle.background = 'rgba(16, 185, 129, 0.06)';
-        cellStyle.borderColor = 'rgba(16, 185, 129, 0.35)';
+        // Holiday highlight: Red/rose tint
+        cellStyle.background = 'rgba(239, 68, 68, 0.04)';
+        cellStyle.borderColor = 'rgba(239, 68, 68, 0.25)';
         cellStyle.borderStyle = 'dotted';
-        dateColor = { color: 'rgba(52, 211, 153, 0.95)' };
+        dateColor = { color: 'rgba(244, 63, 94, 0.9)' };
       } else if (isSecSat) {
         // Second Saturday highlight: Amber/gold tint
         cellStyle.background = 'rgba(245, 158, 11, 0.06)';
@@ -4139,7 +4139,7 @@ export default function App() {
           
           {/* Context sub-labels for holidays/saturdays */}
           {!isBeforeJoining && matchingHols.length > 0 && (
-            <div style={{ fontSize: '8px', fontWeight: '600', color: 'rgba(52, 211, 153, 0.85)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '100%', padding: '0 2px' }} title={matchingHols.map(h=>h.name).join(', ')}>
+            <div style={{ fontSize: '8px', fontWeight: '600', color: 'rgba(244, 63, 94, 0.85)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '100%', padding: '0 2px' }} title={matchingHols.map(h=>h.name).join(', ')}>
               {matchingHols[0].name}
             </div>
           )}

@@ -1037,11 +1037,11 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .calendar-cell.holiday-cell {
-  background: rgba(16, 185, 129, 0.08) !important;
-  border: 1.2px dotted rgba(16, 185, 129, 0.45) !important;
+  background: rgba(239, 68, 68, 0.06) !important;
+  border: 1.2px dotted rgba(239, 68, 68, 0.35) !important;
 }
 .calendar-cell.holiday-cell .calendar-cell-date {
-  color: #34d399 !important;
+  color: #f43f5e !important;
   font-weight: 700 !important;
 }
 
